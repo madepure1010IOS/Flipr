@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,10 +11,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ICE } from "../constants/theme";
 
-const API_URL = "http://localhost:3000";
+const API_URL = "https://flipr-backend-production-ac14.up.railway.app";
 const { width } = Dimensions.get("window");
-const CARD_WIDTH = (width - 48) / 2;
+const CARD_WIDTH = (width - 52) / 2;
 
 const CATEGORIES = [
   "All",
@@ -46,9 +48,6 @@ export default function HomeScreen() {
       ? items
       : items.filter((i) => i.category === activeCategory);
 
-  const upCount = items.filter((i) => i.trend === "up").length;
-  const downCount = items.filter((i) => i.trend === "down").length;
-
   const navigateToItem = (item: any) => {
     router.push({
       pathname: "/item",
@@ -68,42 +67,24 @@ export default function HomeScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.logo}>FlipTracker</Text>
-            <Text style={styles.subtitle}>Resale Market Intelligence</Text>
-          </View>
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        </View>
-
-        {/* Market Overview */}
-        <View style={styles.overviewCard}>
-          <Text style={styles.overviewLabel}>MARKET OVERVIEW</Text>
-          <View style={styles.overviewRow}>
-            <View style={styles.overviewStat}>
-              <Text style={styles.overviewNumber}>{upCount}</Text>
-              <Text style={styles.overviewStatLabel}>Uptrend</Text>
-              <View
-                style={[styles.overviewBar, { backgroundColor: "#00ff88" }]}
-              />
+          <View style={styles.headerLeft}>
+            <Image
+              source={require("../../assets/images/penguin.png")}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
+            <View>
+              <Text style={styles.appName}>Flipr</Text>
+              <Text style={styles.subtitle}>Resale Intelligence</Text>
             </View>
-            <View style={styles.overviewDivider} />
-            <View style={styles.overviewStat}>
-              <Text style={styles.overviewNumber}>{downCount}</Text>
-              <Text style={styles.overviewStatLabel}>Downtrend</Text>
-              <View
-                style={[styles.overviewBar, { backgroundColor: "#ff4444" }]}
-              />
-            </View>
-            <View style={styles.overviewDivider} />
-            <View style={styles.overviewStat}>
-              <Text style={styles.overviewNumber}>{items.length}</Text>
-              <Text style={styles.overviewStatLabel}>Tracked</Text>
-              <View
-                style={[styles.overviewBar, { backgroundColor: "#f0a500" }]}
-              />
+          </View>
+          <View style={styles.headerRight}>
+            <TouchableOpacity onPress={() => router.push("/settings")}>
+              <Text style={styles.settingsIcon}>⚙️</Text>
+            </TouchableOpacity>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
             </View>
           </View>
         </View>
@@ -135,68 +116,68 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {/* Top Performer */}
+        {loading && (
+          <ActivityIndicator
+            size="large"
+            color={ICE.primary}
+            style={{ marginTop: 60 }}
+          />
+        )}
+
+        {/* Top Performer — full width hero card */}
         {!loading && items.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Top Performer</Text>
-            </View>
+            <Text style={styles.sectionLabel}>TOP PERFORMER</Text>
             <TouchableOpacity
-              style={styles.topCard}
+              style={styles.heroCard}
               onPress={() => navigateToItem(items[0])}
             >
-              <View style={styles.topCardImagePlaceholder}>
-                <Text style={styles.topCardImageText}>
-                  {items[0].category?.charAt(0)}
-                </Text>
-              </View>
-              <View style={styles.topCardInfo}>
-                <Text style={styles.topCardCategory}>
-                  {items[0].category?.toUpperCase()}
-                </Text>
-                <Text style={styles.topCardName}>{items[0].name}</Text>
-                <View style={styles.topCardBottom}>
-                  <Text style={styles.topCardPrice}>{items[0].price}</Text>
-                  <View
+              <View style={styles.heroCardTop}>
+                <View style={styles.heroImageBox}>
+                  <Text style={styles.heroImageLetter}>
+                    {items[0].name?.charAt(0)}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.trendBadge,
+                    items[0].trend === "up"
+                      ? styles.trendBadgeUp
+                      : styles.trendBadgeDown,
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.changePill,
-                      items[0].trend === "up"
-                        ? styles.changePillUp
-                        : styles.changePillDown,
+                      styles.trendBadgeText,
+                      items[0].trend === "up" ? styles.up : styles.down,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.changeText,
-                        items[0].trend === "up" ? styles.up : styles.down,
-                      ]}
-                    >
-                      {items[0].trend === "up" ? "+" : ""}
-                      {items[0].change}
-                    </Text>
-                  </View>
+                    {items[0].trend === "up" ? "▲" : "▼"}{" "}
+                    {String(items[0].change).replace("+", "")}
+                  </Text>
                 </View>
-                <Text style={styles.topCardVolume}>{items[0].volume}</Text>
+              </View>
+              <Text style={styles.heroCategory}>
+                {items[0].category?.toUpperCase()}
+              </Text>
+              <Text style={styles.heroName} numberOfLines={2}>
+                {items[0].name}
+              </Text>
+              <View style={styles.heroBottom}>
+                <Text style={styles.heroPrice}>{items[0].price}</Text>
+                <Text style={styles.heroVolume}>{items[0].volume}</Text>
               </View>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Grid Section */}
-        {!loading && (
+        {/* Grid */}
+        {!loading && filtered.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {activeCategory === "All" ? "Trending Now" : activeCategory}
-                <Text style={styles.sectionCount}> {filtered.length}</Text>
-              </Text>
-              <TouchableOpacity>
-                <Text style={styles.showAll}>Show all</Text>
-              </TouchableOpacity>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionLabel}>TRENDING NOW</Text>
+              <Text style={styles.sectionCount}>{filtered.length} items</Text>
             </View>
-
-            {loading && <ActivityIndicator color="#00ff88" />}
-
             <View style={styles.grid}>
               {filtered.map((item, index) => (
                 <TouchableOpacity
@@ -204,316 +185,231 @@ export default function HomeScreen() {
                   style={styles.gridCard}
                   onPress={() => navigateToItem(item)}
                 >
+                  {/* Image area */}
                   <View style={styles.gridImageBox}>
                     <Text style={styles.gridImageLetter}>
                       {item.name?.charAt(0)}
                     </Text>
                     <View
                       style={[
-                        styles.trendIndicator,
-                        item.trend === "up" ? styles.trendUp : styles.trendDown,
+                        styles.gridTrendDot,
+                        item.trend === "up"
+                          ? styles.trendDotUp
+                          : styles.trendDotDown,
                       ]}
-                    >
-                      <Text style={styles.trendIndicatorText}>
-                        {item.trend === "up" ? "▲" : "▼"}
-                      </Text>
-                    </View>
+                    />
                   </View>
+
+                  {/* Info */}
+                  <Text style={styles.gridCategory}>{item.category}</Text>
                   <Text style={styles.gridName} numberOfLines={2}>
                     {item.name}
                   </Text>
-                  <Text style={styles.gridPrice}>{item.price}</Text>
-                  <Text
-                    style={[
-                      styles.gridChange,
-                      item.trend === "up" ? styles.up : styles.down,
-                    ]}
-                  >
-                    {item.trend === "up" ? "+" : ""}
-                    {item.change}
-                  </Text>
+
+                  {/* Price row */}
+                  <View style={styles.gridPriceRow}>
+                    <Text style={styles.gridPrice}>{item.price}</Text>
+                    <Text
+                      style={[
+                        styles.gridChange,
+                        item.trend === "up" ? styles.up : styles.down,
+                      ]}
+                    >
+                      {item.trend === "up" ? "+" : ""}
+                      {String(item.change).replace("+", "")}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
         )}
 
-        <View style={{ height: 30 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#111318",
-  },
+  container: { flex: 1, backgroundColor: ICE.bg },
+
+  // Header
   header: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 16,
+    paddingBottom: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  logo: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: -0.5,
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  logoImg: { width: 38, height: 38, borderRadius: 10 },
+  appName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: ICE.textPrimary,
+    letterSpacing: -0.3,
   },
-  subtitle: {
-    fontSize: 12,
-    color: "#555",
-    marginTop: 2,
-  },
+  subtitle: { fontSize: 11, color: ICE.textMuted, marginTop: 1 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  settingsIcon: { fontSize: 18 },
   liveBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a2a1a",
+    backgroundColor: ICE.primaryGlow,
     borderWidth: 1,
-    borderColor: "#00ff88",
+    borderColor: ICE.primary,
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    gap: 5,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#00ff88",
-  },
-  liveText: {
-    color: "#00ff88",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-  },
-  overviewCard: {
-    marginHorizontal: 20,
-    backgroundColor: "#1c1f26",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#252830",
-  },
-  overviewLabel: {
-    color: "#555",
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.5,
-    marginBottom: 16,
-  },
-  overviewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  overviewStat: {
-    flex: 1,
-    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     gap: 4,
   },
-  overviewNumber: {
-    color: "#fff",
-    fontSize: 28,
+  liveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: ICE.primary,
+  },
+  liveText: {
+    color: ICE.primary,
+    fontSize: 9,
     fontWeight: "800",
+    letterSpacing: 1.5,
   },
-  overviewStatLabel: {
-    color: "#555",
-    fontSize: 11,
-  },
-  overviewBar: {
-    height: 3,
-    width: 30,
-    borderRadius: 2,
-    marginTop: 4,
-  },
-  overviewDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#252830",
-  },
-  categoryContainer: {
-    paddingHorizontal: 20,
-    gap: 8,
-    marginBottom: 24,
-  },
+
+  // Categories
+  categoryContainer: { paddingHorizontal: 20, gap: 8, marginBottom: 28 },
   categoryPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#1c1f26",
-    borderWidth: 1,
-    borderColor: "#252830",
+    backgroundColor: ICE.bgElement,
   },
-  categoryPillActive: {
-    backgroundColor: "#fff",
-    borderColor: "#fff",
-  },
-  categoryText: {
-    color: "#666",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  categoryTextActive: {
-    color: "#000",
-    fontWeight: "700",
-  },
-  section: {
-    marginBottom: 28,
-  },
-  sectionHeader: {
+  categoryPillActive: { backgroundColor: ICE.primary },
+  categoryText: { color: ICE.textMuted, fontSize: 13, fontWeight: "500" },
+  categoryTextActive: { color: "#000", fontWeight: "700" },
+
+  // Sections
+  section: { marginBottom: 28, paddingHorizontal: 20 },
+  sectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
     marginBottom: 14,
   },
-  sectionTitle: {
-    color: "#fff",
-    fontSize: 18,
+  sectionLabel: {
+    color: ICE.textMuted,
+    fontSize: 10,
     fontWeight: "700",
+    letterSpacing: 2,
+    marginBottom: 14,
   },
-  sectionCount: {
-    color: "#555",
-    fontSize: 16,
-    fontWeight: "400",
+  sectionCount: { color: ICE.textMuted, fontSize: 11 },
+
+  // Hero Card
+  heroCard: {
+    backgroundColor: ICE.bgCard,
+    borderRadius: 20,
+    padding: 16,
+    gap: 6,
   },
-  showAll: {
-    color: "#00ff88",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  topCard: {
-    marginHorizontal: 20,
-    backgroundColor: "#1c1f26",
-    borderRadius: 16,
+  heroCardTop: {
     flexDirection: "row",
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#252830",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
   },
-  topCardImagePlaceholder: {
-    width: 120,
-    backgroundColor: "#252830",
+  heroImageBox: {
+    width: 56,
+    height: 56,
+    backgroundColor: ICE.bgElement,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
   },
-  topCardImageText: {
-    fontSize: 40,
-    fontWeight: "800",
-    color: "#333",
-  },
-  topCardInfo: {
-    flex: 1,
-    padding: 16,
-    gap: 4,
-  },
-  topCardCategory: {
-    color: "#555",
+  heroImageLetter: { color: ICE.textMuted, fontSize: 24, fontWeight: "800" },
+  trendBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  trendBadgeUp: { backgroundColor: ICE.upBg },
+  trendBadgeDown: { backgroundColor: ICE.downBg },
+  trendBadgeText: { fontSize: 12, fontWeight: "700" },
+  heroCategory: {
+    color: ICE.primary,
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1.5,
   },
-  topCardName: {
-    color: "#fff",
-    fontSize: 16,
+  heroName: {
+    color: ICE.textPrimary,
+    fontSize: 18,
     fontWeight: "700",
-    marginTop: 4,
-    lineHeight: 22,
+    lineHeight: 24,
   },
-  topCardBottom: {
+  heroBottom: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
     marginTop: 8,
   },
-  topCardPrice: {
-    color: "#fff",
-    fontSize: 20,
+  heroPrice: {
+    color: ICE.textPrimary,
+    fontSize: 26,
     fontWeight: "800",
+    letterSpacing: -0.5,
   },
-  changePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  changePillUp: { backgroundColor: "#0a2a1a" },
-  changePillDown: { backgroundColor: "#2a0a0a" },
-  changeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  topCardVolume: {
-    color: "#555",
-    fontSize: 12,
-    marginTop: 4,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 20,
-    gap: 8,
-  },
+  heroVolume: { color: ICE.textMuted, fontSize: 12 },
+
+  // Grid
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   gridCard: {
     width: CARD_WIDTH,
-    backgroundColor: "#1c1f26",
-    borderRadius: 16,
+    backgroundColor: ICE.bgCard,
+    borderRadius: 18,
     padding: 14,
-    borderWidth: 1,
-    borderColor: "#252830",
+    gap: 4,
   },
   gridImageBox: {
     width: "100%",
-    height: 100,
-    backgroundColor: "#252830",
-    borderRadius: 10,
-    marginBottom: 12,
+    height: 90,
+    backgroundColor: ICE.bgElement,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 10,
     position: "relative",
   },
-  gridImageLetter: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#333",
-  },
-  trendIndicator: {
+  gridImageLetter: { color: ICE.textMuted, fontSize: 32, fontWeight: "800" },
+  gridTrendDot: {
     position: "absolute",
     top: 8,
     right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
-  trendUp: { backgroundColor: "#0a2a1a" },
-  trendDown: { backgroundColor: "#2a0a0a" },
-  trendIndicatorText: {
+  trendDotUp: { backgroundColor: ICE.up },
+  trendDotDown: { backgroundColor: ICE.down },
+  gridCategory: {
+    color: ICE.textMuted,
     fontSize: 10,
-    color: "#fff",
+    fontWeight: "600",
+    letterSpacing: 1,
   },
   gridName: {
-    color: "#fff",
+    color: ICE.textPrimary,
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
-    marginBottom: 6,
   },
-  gridPrice: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 2,
+  gridPriceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
   },
-  gridChange: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  up: { color: "#00ff88" },
-  down: { color: "#ff4444" },
+  gridPrice: { color: ICE.textPrimary, fontSize: 15, fontWeight: "800" },
+  gridChange: { fontSize: 12, fontWeight: "600" },
+
+  up: { color: ICE.up },
+  down: { color: ICE.down },
 });

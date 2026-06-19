@@ -1,65 +1,33 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+// Flipr Ice Theme — consistent colors used across all screens
 
-import '@/global.css';
+export const ICE = {
+  // Backgrounds
+  bg: "#0a0f1e", // deep arctic night
+  bgCard: "#0d1b2e", // dark ice card
+  bgElement: "#111f35", // elevated element
 
-import { Platform } from 'react-native';
+  // Borders
+  border: "#1a3350", // ice border
+  borderLight: "#1e3a5f", // lighter border
 
-export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
-} as const;
+  // Brand
+  primary: "#60c8f5", // ice blue (main accent)
+  primaryLight: "#a8d8ea", // glacier light
+  primaryGlow: "#60c8f510", // glow effect
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+  // Text
+  textPrimary: "#ffffff", // white
+  textSecondary: "#8ab4cc", // frosty blue-grey
+  textMuted: "#3d5a73", // deep frost
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+  // Trend colors
+  up: "#60c8f5", // ice blue for uptrend
+  upBg: "#0a1f35", // uptrend background
+  upBorder: "#60c8f530", // uptrend border
+  down: "#ff6b8a", // warm red for downtrend
+  downBg: "#2a0a15", // downtrend background
+  downBorder: "#ff6b8a30", // downtrend border
 
-export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
-} as const;
-
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+  // Tab bar
+  tabBg: "#080d18", // darkest ice
+};

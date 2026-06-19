@@ -1,15 +1,22 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
+import Svg, {
+  Defs,
+  Line,
+  LinearGradient,
+  Path,
+  Stop
+} from "react-native-svg";
+import { ICE } from "../constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -70,9 +77,9 @@ const PRICE_DATA: Record<string, { date: string; price: number }[]> = {
 };
 
 const TIMEFRAMES = ["1M", "6M", "1Y", "5Y", "ALL"];
-const CHART_W = width;
-const CHART_H = 220;
-const PAD = { top: 30, bottom: 10, left: 0, right: 0 };
+const CHART_W = width - 40;
+const CHART_H = 180;
+const PAD = { top: 20, bottom: 10, left: 0, right: 0 };
 
 export default function ItemScreen() {
   const { name, price, change, trend, category, volume } =
@@ -86,10 +93,9 @@ export default function ItemScreen() {
   const minP = Math.min(...prices) - 5;
   const maxP = Math.max(...prices) + 5;
   const range = maxP - minP;
-  const innerW = CHART_W;
   const innerH = CHART_H - PAD.top - PAD.bottom;
 
-  const getX = (i: number) => (i / (data.length - 1)) * innerW;
+  const getX = (i: number) => (i / (data.length - 1)) * CHART_W;
   const getY = (p: number) => PAD.top + ((maxP - p) / range) * innerH;
 
   const linePath = data
@@ -98,49 +104,55 @@ export default function ItemScreen() {
   const areaPath =
     linePath + ` L ${getX(data.length - 1)} ${CHART_H} L 0 ${CHART_H} Z`;
 
-  const startP = data[0].price;
-  const endP = data[data.length - 1].price;
   const rawChange = parseFloat(
     String(change).replace("%", "").replace("+", ""),
   );
-  const diff = endP - startP;
   const diffPct = Math.abs(rawChange).toFixed(2);
-  const lineColor = isUp ? "#00e5aa" : "#ff4444";
-
+  const lineColor = isUp ? ICE.up : ICE.down;
   const flipRisk = isUp ? 28 : 62;
-  const flipRiskPct = flipRisk / 100;
+
+  const gridPrices = [maxP, maxP - range * 0.33, maxP - range * 0.66, minP];
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} bounces={true}>
+      <ScrollView showsVerticalScrollIndicator={false}>
         {/* Nav */}
         <View style={styles.nav}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backBtn}
           >
-            <Text style={styles.backArrow}>‹</Text>
+            <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
+          <Text style={styles.navCategory}>
+            {String(category).toUpperCase()}
+          </Text>
+          <View
+            style={[
+              styles.signalBadge,
+              isUp ? styles.signalUp : styles.signalDown,
+            ]}
+          >
+            <Text style={[styles.signalText, isUp ? styles.up : styles.down]}>
+              {isUp ? "BUY" : "AVOID"}
+            </Text>
+          </View>
         </View>
 
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroLeft}>
-            <Text style={styles.heroName} numberOfLines={2}>
-              {name}
-            </Text>
-            <Text style={styles.heroCategory}>{category}</Text>
-          </View>
-          <View style={styles.heroRight}>
-            <Text style={styles.heroPrice}>{price}</Text>
-            <Text style={[styles.heroChange, isUp ? styles.up : styles.down]}>
-              {isUp ? "▲" : "▼"} {isUp ? "+" : "-"}
+        {/* Price Hero */}
+        <View style={styles.priceHero}>
+          <Text style={styles.itemName}>{name}</Text>
+          <Text style={styles.priceText}>{price}</Text>
+          <View style={[styles.changePill, { backgroundColor: lineColor }]}>
+            <Text style={styles.changePillText}>
+              {isUp ? "+" : "-"}
               {diffPct}%
             </Text>
           </View>
+          <Text style={styles.volumeText}>{volume} · Last 30 days</Text>
         </View>
 
-        {/* Timeframe Pills */}
+        {/* Timeframe */}
         <View style={styles.tfRow}>
           {TIMEFRAMES.map((t) => (
             <TouchableOpacity
@@ -155,16 +167,30 @@ export default function ItemScreen() {
           ))}
         </View>
 
-        {/* Chart - full bleed */}
+        {/* Chart */}
         <View style={styles.chartWrap}>
           <Svg width={CHART_W} height={CHART_H}>
             <Defs>
-              <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={lineColor} stopOpacity="0.3" />
+              <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={lineColor} stopOpacity="0.2" />
                 <Stop offset="1" stopColor={lineColor} stopOpacity="0" />
               </LinearGradient>
             </Defs>
-            <Path d={areaPath} fill="url(#areaGrad)" />
+
+            {/* Grid lines */}
+            {gridPrices.map((p, i) => (
+              <Line
+                key={i}
+                x1={0}
+                y1={getY(p)}
+                x2={CHART_W}
+                y2={getY(p)}
+                stroke={ICE.bgElement}
+                strokeWidth={1}
+              />
+            ))}
+
+            <Path d={areaPath} fill="url(#grad)" />
             <Path
               d={linePath}
               stroke={lineColor}
@@ -192,116 +218,115 @@ export default function ItemScreen() {
           </View>
         </View>
 
-        {/* Content below chart */}
-        <View style={styles.content}>
-          {/* Flip Risk Card */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Flip Risk</Text>
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          {[
+            { label: "Volume", value: String(volume) },
+            { label: "Demand", value: isUp ? "High" : "Low", colored: true },
+            { label: "Sell Time", value: isUp ? "2.3d" : "8.1d" },
+            {
+              label: "Sell Through",
+              value: isUp ? "78%" : "41%",
+              colored: true,
+            },
+          ].map((s, i) => (
+            <View key={i} style={styles.statItem}>
               <Text
                 style={[
-                  styles.cardValue,
-                  { color: isUp ? "#00e5aa" : "#ff4444" },
+                  styles.statValue,
+                  s.colored && (isUp ? styles.up : styles.down),
                 ]}
               >
-                {flipRisk}%
+                {s.value}
               </Text>
+              <Text style={styles.statLabel}>{s.label}</Text>
             </View>
+          ))}
+        </View>
 
-            {/* Risk bar */}
-            <View style={styles.riskBarTrack}>
-              <View style={styles.riskBarFill}>
-                <View
-                  style={[styles.riskBarActive, { width: `${flipRisk}%` }]}
-                />
-                <View style={[styles.riskDot, { left: `${flipRisk}%` }]} />
-              </View>
-            </View>
-            <View style={styles.riskLabels}>
-              <Text style={styles.riskLabel}>LOW</Text>
-              <Text style={styles.riskLabel}>AVERAGE</Text>
-              <Text style={styles.riskLabel}>MEDIUM</Text>
-              <Text style={styles.riskLabel}>HIGH</Text>
-            </View>
+        <View style={styles.divider} />
+
+        {/* Flip Risk */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Flip Risk</Text>
+            <Text style={[styles.sectionValue, isUp ? styles.up : styles.down]}>
+              {flipRisk}%
+            </Text>
           </View>
+          <View style={styles.riskTrack}>
+            <View
+              style={[
+                styles.riskFill,
+                {
+                  width: `${flipRisk}%` as any,
+                  backgroundColor: isUp ? ICE.up : ICE.down,
+                },
+              ]}
+            />
+            <View
+              style={[
+                styles.riskDot,
+                {
+                  left: `${flipRisk}%` as any,
+                  backgroundColor: isUp ? ICE.up : ICE.down,
+                },
+              ]}
+            />
+          </View>
+          <View style={styles.riskLabels}>
+            <Text style={styles.riskLabel}>LOW</Text>
+            <Text style={styles.riskLabel}>AVERAGE</Text>
+            <Text style={styles.riskLabel}>MEDIUM</Text>
+            <Text style={styles.riskLabel}>HIGH</Text>
+          </View>
+        </View>
 
-          {/* Estimated Flip Return */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Estimated Flip Return</Text>
-              <Text style={[styles.cardValue, styles.up]}>
-                {isUp ? "72%" : "18%"}
-              </Text>
-            </View>
+        <View style={styles.divider} />
 
-            {/* Gradient bar */}
-            <View style={styles.returnBar} />
-
-            <View style={styles.returnGrid}>
-              {[
-                { label: "30D", value: isUp ? "+8%" : "-2%" },
-                { label: "3M", value: isUp ? "+15%" : "-5%" },
-                { label: "6M", value: isUp ? "+28%" : "-8%" },
-                { label: "1Y", value: isUp ? "+48%" : "-12%" },
-                { label: "2Y", value: isUp ? "+72%" : "+5%" },
-              ].map((r, i) => (
-                <View key={i} style={styles.returnItem}>
+        {/* Estimated Return */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Estimated Return</Text>
+            <Text style={[styles.sectionValue, styles.up]}>
+              {isUp ? "72%" : "18%"}
+            </Text>
+          </View>
+          <View style={styles.returnList}>
+            {[
+              { period: "30 Days", value: isUp ? "+8%" : "-2%" },
+              { period: "3 Months", value: isUp ? "+15%" : "-5%" },
+              { period: "6 Months", value: isUp ? "+28%" : "-8%" },
+              { period: "1 Year", value: isUp ? "+48%" : "-12%" },
+              { period: "2 Years", value: isUp ? "+72%" : "+5%" },
+            ].map((r, i) => (
+              <View key={i} style={styles.returnRow}>
+                <Text style={styles.returnPeriod}>{r.period}</Text>
+                <View style={styles.returnBarWrap}>
                   <View
                     style={[
-                      styles.returnDot,
+                      styles.returnBar,
                       {
+                        width: `${Math.abs(parseFloat(r.value))}%` as any,
                         backgroundColor:
-                          i < 2 ? "#c084fc" : i < 4 ? "#60a5fa" : "#00e5aa",
+                          parseFloat(r.value) >= 0 ? ICE.up : ICE.down,
                       },
                     ]}
                   />
-                  <Text style={styles.returnLabel}>{r.label} — </Text>
-                  <Text
-                    style={[
-                      styles.returnValue,
-                      parseFloat(r.value) >= 0 ? styles.up : styles.down,
-                    ]}
-                  >
-                    {r.value}
-                  </Text>
                 </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Market Stats */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Market Stats</Text>
-            <View style={styles.statsGrid}>
-              {[
-                { value: String(volume), label: "30d Volume" },
-                {
-                  value: isUp ? "High" : "Low",
-                  label: "Demand",
-                  colored: true,
-                },
-                { value: isUp ? "2.3d" : "8.1d", label: "Avg Sell Time" },
-                {
-                  value: isUp ? "78%" : "41%",
-                  label: "Sell Through",
-                  colored: true,
-                },
-              ].map((s, i) => (
-                <View key={i} style={styles.statItem}>
-                  <Text
-                    style={[
-                      styles.statVal,
-                      s.colored && (isUp ? styles.up : styles.down),
-                    ]}
-                  >
-                    {s.value}
-                  </Text>
-                  <Text style={styles.statLbl}>{s.label}</Text>
-                </View>
-              ))}
-            </View>
+                <Text
+                  style={[
+                    styles.returnValue,
+                    parseFloat(r.value) >= 0 ? styles.up : styles.down,
+                  ]}
+                >
+                  {r.value}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -309,213 +334,161 @@ export default function ItemScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0a0a1a",
-  },
+  container: { flex: 1, backgroundColor: ICE.bg },
+
   nav: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-  },
-  backArrow: {
-    color: "#fff",
-    fontSize: 32,
-    fontWeight: "300",
-    lineHeight: 36,
-  },
-  hero: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  heroLeft: {
-    flex: 1,
-    marginRight: 12,
-  },
-  heroName: {
-    color: "#fff",
-    fontSize: 22,
+  backBtn: { width: 36, height: 36, justifyContent: "center" },
+  backText: { color: ICE.textPrimary, fontSize: 24, fontWeight: "300" },
+  navCategory: {
+    color: ICE.textMuted,
+    fontSize: 11,
     fontWeight: "700",
-    lineHeight: 28,
+    letterSpacing: 2,
   },
-  heroCategory: {
-    color: "#555",
-    fontSize: 12,
-    marginTop: 4,
-    textTransform: "uppercase",
-    letterSpacing: 1,
+  signalBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  heroRight: {
-    alignItems: "flex-end",
+  signalUp: { backgroundColor: ICE.upBg, borderColor: ICE.upBorder },
+  signalDown: { backgroundColor: ICE.downBg, borderColor: ICE.downBorder },
+  signalText: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+
+  priceHero: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 8,
   },
-  heroPrice: {
-    color: "#fff",
-    fontSize: 28,
+  itemName: { color: ICE.textSecondary, fontSize: 14, fontWeight: "500" },
+  priceText: {
+    color: ICE.textPrimary,
+    fontSize: 52,
     fontWeight: "800",
-    letterSpacing: -1,
+    letterSpacing: -2,
   },
-  heroChange: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 4,
+  changePill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
+  changePillText: { color: "#000", fontWeight: "800", fontSize: 13 },
+  volumeText: { color: ICE.textMuted, fontSize: 12 },
+
   tfRow: {
     flexDirection: "row",
     paddingHorizontal: 20,
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   tfPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#1a1a2e",
+    backgroundColor: ICE.bgElement,
   },
-  tfPillActive: {
-    backgroundColor: "#fff",
-  },
-  tfText: {
-    color: "#555",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  tfTextActive: {
-    color: "#000",
-    fontWeight: "700",
-  },
-  chartWrap: {
-    marginBottom: 24,
-  },
+  tfPillActive: { backgroundColor: ICE.primary },
+  tfText: { color: ICE.textMuted, fontSize: 12, fontWeight: "600" },
+  tfTextActive: { color: "#000", fontWeight: "700" },
+
+  chartWrap: { paddingHorizontal: 20, marginBottom: 28 },
   xAxis: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginTop: 8,
+  },
+  xLabel: { color: ICE.textMuted, fontSize: 10 },
+
+  statsRow: {
+    flexDirection: "row",
     paddingHorizontal: 20,
-    marginTop: 6,
+    marginBottom: 28,
+    justifyContent: "space-between",
   },
-  xLabel: {
-    color: "#444",
-    fontSize: 11,
+  statItem: { alignItems: "center" },
+  statValue: {
+    color: ICE.textPrimary,
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 3,
   },
-  content: {
-    paddingHorizontal: 20,
-    gap: 12,
+  statLabel: {
+    color: ICE.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.5,
   },
-  card: {
-    backgroundColor: "#12122a",
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#1e1e3a",
+
+  divider: {
+    height: 1,
+    backgroundColor: ICE.bgElement,
+    marginHorizontal: 20,
+    marginBottom: 28,
   },
-  cardHeader: {
+
+  section: { paddingHorizontal: 20, marginBottom: 28 },
+  sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
   },
-  cardTitle: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  cardValue: {
-    fontSize: 22,
-    fontWeight: "800",
-  },
-  riskBarTrack: {
-    height: 12,
-    backgroundColor: "#1e1e3a",
-    borderRadius: 6,
-    marginBottom: 8,
-    overflow: "visible",
-  },
-  riskBarFill: {
-    flex: 1,
+  sectionTitle: { color: ICE.textPrimary, fontSize: 16, fontWeight: "700" },
+  sectionValue: { fontSize: 20, fontWeight: "800" },
+
+  riskTrack: {
+    height: 6,
+    backgroundColor: ICE.bgElement,
+    borderRadius: 3,
+    marginBottom: 10,
     position: "relative",
   },
-  riskBarActive: {
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#f0a500",
-  },
+  riskFill: { height: 6, borderRadius: 3 },
   riskDot: {
     position: "absolute",
-    top: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#f0a500",
+    top: -5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 3,
-    borderColor: "#0a0a1a",
-    marginLeft: -10,
+    borderColor: ICE.bg,
+    marginLeft: -8,
   },
-  riskLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
+  riskLabels: { flexDirection: "row", justifyContent: "space-between" },
   riskLabel: {
-    color: "#444",
+    color: ICE.textMuted,
     fontSize: 9,
     fontWeight: "600",
     letterSpacing: 0.5,
   },
-  returnBar: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#1e1e3a",
-    marginBottom: 16,
+
+  returnList: { gap: 14 },
+  returnRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  returnPeriod: { color: ICE.textSecondary, fontSize: 13, width: 72 },
+  returnBarWrap: {
+    flex: 1,
+    height: 4,
+    backgroundColor: ICE.bgElement,
+    borderRadius: 2,
     overflow: "hidden",
   },
-  returnGrid: {
-    gap: 10,
-  },
-  returnItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  returnDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  returnLabel: {
-    color: "#555",
-    fontSize: 13,
-  },
+  returnBar: { height: 4, borderRadius: 2 },
   returnValue: {
     fontSize: 13,
     fontWeight: "700",
+    width: 44,
+    textAlign: "right",
   },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 16,
-  },
-  statItem: {
-    width: "45%",
-  },
-  statVal: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 2,
-  },
-  statLbl: {
-    color: "#444",
-    fontSize: 12,
-  },
-  up: { color: "#00e5aa" },
-  down: { color: "#ff4444" },
+
+  up: { color: ICE.up },
+  down: { color: ICE.down },
 });
