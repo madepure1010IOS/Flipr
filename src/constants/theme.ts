@@ -31,3 +31,11 @@ export const ICE = {
   // Tab bar
   tabBg: "#080d18", // darkest ice
 };
+
+export const FONT = {
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
+  bold: "Inter_700Bold",
+  extrabold: "Inter_800ExtraBold",
+};

@@ -9,14 +9,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, {
-  Defs,
-  Line,
-  LinearGradient,
-  Path,
-  Stop
-} from "react-native-svg";
-import { ICE } from "../constants/theme";
+import Svg, { Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
+import { FONT, ICE } from "../constants/theme";
+import { supabase } from "../supabase";
 
 const { width } = Dimensions.get("window");
 
@@ -86,6 +81,7 @@ export default function ItemScreen() {
     useLocalSearchParams();
   const router = useRouter();
   const [tf, setTf] = useState("6M");
+  const [added, setAdded] = useState(false);
   const isUp = trend === "up";
 
   const data = PRICE_DATA[tf];
@@ -110,8 +106,24 @@ export default function ItemScreen() {
   const diffPct = Math.abs(rawChange).toFixed(2);
   const lineColor = isUp ? ICE.up : ICE.down;
   const flipRisk = isUp ? 28 : 62;
-
   const gridPrices = [maxP, maxP - range * 0.33, maxP - range * 0.66, minP];
+
+  const handleAddToWatchlist = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("watchlist").insert({
+      user_id: user.id,
+      item_name: name,
+      category,
+      price,
+      change,
+      trend,
+      volume,
+    });
+    setAdded(true);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -176,8 +188,6 @@ export default function ItemScreen() {
                 <Stop offset="1" stopColor={lineColor} stopOpacity="0" />
               </LinearGradient>
             </Defs>
-
-            {/* Grid lines */}
             {gridPrices.map((p, i) => (
               <Line
                 key={i}
@@ -189,7 +199,6 @@ export default function ItemScreen() {
                 strokeWidth={1}
               />
             ))}
-
             <Path d={areaPath} fill="url(#grad)" />
             <Path
               d={linePath}
@@ -200,8 +209,6 @@ export default function ItemScreen() {
               strokeLinejoin="round"
             />
           </Svg>
-
-          {/* X labels */}
           <View style={styles.xAxis}>
             {data
               .filter(
@@ -245,6 +252,24 @@ export default function ItemScreen() {
         </View>
 
         <View style={styles.divider} />
+
+        {/* Add to Watchlist */}
+        <View style={styles.watchlistSection}>
+          <TouchableOpacity
+            style={[styles.watchlistBtn, added && styles.watchlistBtnAdded]}
+            onPress={handleAddToWatchlist}
+            disabled={added}
+          >
+            <Text
+              style={[
+                styles.watchlistBtnText,
+                added && styles.watchlistBtnTextAdded,
+              ]}
+            >
+              {added ? "Added to Watchlist" : "Add to Watchlist"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Flip Risk */}
         <View style={styles.section}>
@@ -345,11 +370,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backBtn: { width: 36, height: 36, justifyContent: "center" },
-  backText: { color: ICE.textPrimary, fontSize: 24, fontWeight: "300" },
+  backText: { color: ICE.textPrimary, fontSize: 24, fontFamily: FONT.regular },
   navCategory: {
     color: ICE.textMuted,
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: FONT.bold,
     letterSpacing: 2,
   },
   signalBadge: {
@@ -360,7 +385,7 @@ const styles = StyleSheet.create({
   },
   signalUp: { backgroundColor: ICE.upBg, borderColor: ICE.upBorder },
   signalDown: { backgroundColor: ICE.downBg, borderColor: ICE.downBorder },
-  signalText: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  signalText: { fontSize: 11, fontFamily: FONT.extrabold, letterSpacing: 1 },
 
   priceHero: {
     paddingHorizontal: 20,
@@ -368,11 +393,11 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 8,
   },
-  itemName: { color: ICE.textSecondary, fontSize: 14, fontWeight: "500" },
+  itemName: { color: ICE.textSecondary, fontSize: 14, fontFamily: FONT.medium },
   priceText: {
     color: ICE.textPrimary,
     fontSize: 52,
-    fontWeight: "800",
+    fontFamily: FONT.extrabold,
     letterSpacing: -2,
   },
   changePill: {
@@ -381,8 +406,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 20,
   },
-  changePillText: { color: "#000", fontWeight: "800", fontSize: 13 },
-  volumeText: { color: ICE.textMuted, fontSize: 12 },
+  changePillText: { color: "#000", fontFamily: FONT.extrabold, fontSize: 13 },
+  volumeText: { color: ICE.textMuted, fontSize: 12, fontFamily: FONT.regular },
 
   tfRow: {
     flexDirection: "row",
@@ -397,8 +422,8 @@ const styles = StyleSheet.create({
     backgroundColor: ICE.bgElement,
   },
   tfPillActive: { backgroundColor: ICE.primary },
-  tfText: { color: ICE.textMuted, fontSize: 12, fontWeight: "600" },
-  tfTextActive: { color: "#000", fontWeight: "700" },
+  tfText: { color: ICE.textMuted, fontSize: 12, fontFamily: FONT.semibold },
+  tfTextActive: { color: "#000", fontFamily: FONT.bold },
 
   chartWrap: { paddingHorizontal: 20, marginBottom: 28 },
   xAxis: {
@@ -406,7 +431,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 8,
   },
-  xLabel: { color: ICE.textMuted, fontSize: 10 },
+  xLabel: { color: ICE.textMuted, fontSize: 10, fontFamily: FONT.regular },
 
   statsRow: {
     flexDirection: "row",
@@ -418,13 +443,13 @@ const styles = StyleSheet.create({
   statValue: {
     color: ICE.textPrimary,
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: FONT.bold,
     marginBottom: 3,
   },
   statLabel: {
     color: ICE.textMuted,
     fontSize: 10,
-    fontWeight: "600",
+    fontFamily: FONT.semibold,
     letterSpacing: 0.5,
   },
 
@@ -435,6 +460,22 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
 
+  watchlistSection: { paddingHorizontal: 20, marginBottom: 28 },
+  watchlistBtn: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: ICE.primary,
+    backgroundColor: ICE.upBg,
+  },
+  watchlistBtnAdded: {
+    borderColor: ICE.textMuted,
+    backgroundColor: ICE.bgElement,
+  },
+  watchlistBtnText: { color: ICE.primary, fontSize: 15, fontFamily: FONT.bold },
+  watchlistBtnTextAdded: { color: ICE.textMuted },
+
   section: { paddingHorizontal: 20, marginBottom: 28 },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -442,8 +483,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  sectionTitle: { color: ICE.textPrimary, fontSize: 16, fontWeight: "700" },
-  sectionValue: { fontSize: 20, fontWeight: "800" },
+  sectionTitle: { color: ICE.textPrimary, fontSize: 16, fontFamily: FONT.bold },
+  sectionValue: { fontSize: 20, fontFamily: FONT.extrabold },
 
   riskTrack: {
     height: 6,
@@ -467,13 +508,18 @@ const styles = StyleSheet.create({
   riskLabel: {
     color: ICE.textMuted,
     fontSize: 9,
-    fontWeight: "600",
+    fontFamily: FONT.semibold,
     letterSpacing: 0.5,
   },
 
   returnList: { gap: 14 },
   returnRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  returnPeriod: { color: ICE.textSecondary, fontSize: 13, width: 72 },
+  returnPeriod: {
+    color: ICE.textSecondary,
+    fontSize: 13,
+    fontFamily: FONT.regular,
+    width: 72,
+  },
   returnBarWrap: {
     flex: 1,
     height: 4,
@@ -484,7 +530,7 @@ const styles = StyleSheet.create({
   returnBar: { height: 4, borderRadius: 2 },
   returnValue: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: FONT.bold,
     width: 44,
     textAlign: "right",
   },

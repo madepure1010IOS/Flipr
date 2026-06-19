@@ -13,8 +13,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ICE } from "../constants/theme";
+
 const API_URL = "https://flipr-backend-production-ac14.up.railway.app";
 const { width } = Dimensions.get("window");
+const FREE_LIMIT = 5;
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -22,11 +24,21 @@ export default function SearchScreen() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchCount, setSearchCount] = useState(0);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
+
+    // Hit paywall at limit
+    if (searchCount >= FREE_LIMIT) {
+      router.push("/paywall");
+      return;
+    }
+
     setLoading(true);
     setSearched(true);
+    setSearchCount(searchCount + 1);
+
     try {
       const res = await fetch(
         `${API_URL}/search?q=${encodeURIComponent(query)}`,
@@ -53,6 +65,8 @@ export default function SearchScreen() {
     });
   };
 
+  const searchesLeft = FREE_LIMIT - searchCount;
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -63,10 +77,19 @@ export default function SearchScreen() {
             style={styles.logo}
             resizeMode="contain"
           />
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.appName}>Flipr</Text>
             <Text style={styles.subtitle}>Search any item</Text>
           </View>
+          {/* Search counter */}
+          <TouchableOpacity
+            style={styles.counterBadge}
+            onPress={() => router.push("/paywall")}
+          >
+            <Text style={styles.counterText}>
+              {searchesLeft > 0 ? `${searchesLeft} left` : "Upgrade"}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -99,6 +122,21 @@ export default function SearchScreen() {
           <Text style={styles.searchButtonText}>Search</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Pro banner when running low */}
+      {searchesLeft <= 2 && searchesLeft > 0 && (
+        <TouchableOpacity
+          style={styles.proBanner}
+          onPress={() => router.push("/paywall")}
+        >
+          <Text style={styles.proBannerText}>
+            Only {searchesLeft} free{" "}
+            {searchesLeft === 1 ? "search" : "searches"} left — Upgrade to Pro
+            for unlimited
+          </Text>
+          <Text style={styles.proBannerCta}>Upgrade →</Text>
+        </TouchableOpacity>
+      )}
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {loading && (
@@ -183,7 +221,6 @@ export default function SearchScreen() {
               Find out if an item is worth flipping
             </Text>
 
-            {/* Quick searches */}
             <View style={styles.quickSearches}>
               <Text style={styles.quickLabel}>POPULAR SEARCHES</Text>
               <View style={styles.quickGrid}>
@@ -198,9 +235,7 @@ export default function SearchScreen() {
                   <TouchableOpacity
                     key={term}
                     style={styles.quickPill}
-                    onPress={() => {
-                      setQuery(term);
-                    }}
+                    onPress={() => setQuery(term)}
                   >
                     <Text style={styles.quickText}>{term}</Text>
                   </TouchableOpacity>
@@ -228,6 +263,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   subtitle: { fontSize: 11, color: ICE.textMuted, marginTop: 1 },
+  counterBadge: {
+    backgroundColor: ICE.upBg,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: ICE.primary,
+  },
+  counterText: { color: ICE.primary, fontSize: 11, fontWeight: "700" },
   searchContainer: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -255,6 +299,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   searchButtonText: { color: "#000", fontWeight: "700", fontSize: 14 },
+  proBanner: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: ICE.upBg,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: ICE.upBorder,
+  },
+  proBannerText: { color: ICE.textSecondary, fontSize: 12, flex: 1 },
+  proBannerCta: {
+    color: ICE.primary,
+    fontSize: 12,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
   scroll: { flex: 1, paddingHorizontal: 20 },
   loader: { marginTop: 40 },
   resultsLabel: {

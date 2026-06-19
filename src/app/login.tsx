@@ -1,21 +1,21 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ICE } from "../constants/theme";
+import { FONT, ICE } from "../constants/theme";
 import { supabase } from "../supabase";
 
 const { width } = Dimensions.get("window");
@@ -27,7 +27,7 @@ const ONBOARDING_STEPS = [
       "From sneakers to trading cards — see what's trending in the resale market in real time.",
   },
   {
-    title: "Buy & Sell Signals",
+    title: "Buy and Sell Signals",
     subtitle:
       "Know exactly when to buy low and sell high with our flip intelligence engine.",
   },
@@ -53,11 +53,11 @@ export default function LoginScreen() {
 
   const handleAuth = async () => {
     if (!email || !password) {
-      setError("Please enter email and password");
+      setError("Please enter your email and password");
       return;
     }
     if (isSignUp && !agreedToTerms) {
-      setError("Please agree to the Terms & Conditions");
+      setError("Please agree to the Terms and Conditions");
       return;
     }
     setLoading(true);
@@ -75,13 +75,12 @@ export default function LoginScreen() {
 
     setLoading(false);
     if (isSignUp) {
-      setError("Check your email to confirm your account!");
+      setError("Check your email to confirm your account.");
     } else {
-      router.replace("/");
+      router.replace({ pathname: "/paywall", params: { fromAuth: "true" } });
     }
   };
 
-  // Onboarding
   if (showOnboarding) {
     const step = ONBOARDING_STEPS[onboardingIndex];
     const isLast = onboardingIndex === ONBOARDING_STEPS.length - 1;
@@ -96,7 +95,6 @@ export default function LoginScreen() {
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
 
-          {/* Penguin */}
           <View style={styles.penguinWrap}>
             <Image
               source={require("../../assets/images/penguin.png")}
@@ -105,7 +103,6 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Step indicator */}
           <View style={styles.stepBadge}>
             <Text style={styles.stepBadgeText}>
               {onboardingIndex + 1} of {ONBOARDING_STEPS.length}
@@ -117,7 +114,6 @@ export default function LoginScreen() {
             <Text style={styles.onboardingSubtitle}>{step.subtitle}</Text>
           </View>
 
-          {/* Dots */}
           <View style={styles.dots}>
             {ONBOARDING_STEPS.map((_, i) => (
               <View
@@ -153,7 +149,6 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Logo */}
           <View style={styles.logoSection}>
             <Image
               source={require("../../assets/images/penguin.png")}
@@ -164,7 +159,6 @@ export default function LoginScreen() {
             <Text style={styles.tagline}>RESALE MARKET INTELLIGENCE</Text>
           </View>
 
-          {/* Card */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>
               {isSignUp ? "Create Account" : "Welcome Back"}
@@ -175,7 +169,6 @@ export default function LoginScreen() {
                 : "Sign in to your account"}
             </Text>
 
-            {/* Email */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>EMAIL</Text>
               <TextInput
@@ -190,13 +183,12 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>PASSWORD</Text>
               <View style={styles.passwordRow}>
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   placeholderTextColor={ICE.textMuted}
                   value={password}
                   onChangeText={setPassword}
@@ -207,14 +199,13 @@ export default function LoginScreen() {
                   style={styles.eyeBtn}
                   onPress={() => setShowPassword(!showPassword)}
                 >
-                  <Text style={styles.eyeIcon}>
-                    {showPassword ? "🙈" : "👁️"}
+                  <Text style={styles.eyeText}>
+                    {showPassword ? "Hide" : "Show"}
                   </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Terms */}
             {isSignUp && (
               <TouchableOpacity
                 style={styles.termsRow}
@@ -234,13 +225,12 @@ export default function LoginScreen() {
                     style={styles.termsLink}
                     onPress={() => setShowTerms(true)}
                   >
-                    Terms & Conditions
+                    Terms and Conditions
                   </Text>
                 </Text>
               </TouchableOpacity>
             )}
 
-            {/* Error */}
             {error ? (
               <Text
                 style={[
@@ -252,7 +242,6 @@ export default function LoginScreen() {
               </Text>
             ) : null}
 
-            {/* Button */}
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleAuth}
@@ -267,7 +256,6 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Toggle */}
             <TouchableOpacity
               style={styles.toggle}
               onPress={() => {
@@ -278,8 +266,8 @@ export default function LoginScreen() {
             >
               <Text style={styles.toggleText}>
                 {isSignUp
-                  ? "Already have an account? "
-                  : "Don't have an account? "}
+                  ? "Already have an account?  "
+                  : "Don't have an account?  "}
                 <Text style={styles.toggleLink}>
                   {isSignUp ? "Sign In" : "Sign Up"}
                 </Text>
@@ -287,13 +275,19 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity onPress={() => router.replace("/")}>
+          <TouchableOpacity
+            onPress={() =>
+              router.replace({
+                pathname: "/paywall",
+                params: { fromAuth: "true" },
+              })
+            }
+          >
             <Text style={styles.skip}>Continue without account</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Terms Modal */}
       <Modal
         visible={showTerms}
         animationType="slide"
@@ -301,7 +295,7 @@ export default function LoginScreen() {
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Terms & Conditions</Text>
+            <Text style={styles.modalTitle}>Terms and Conditions</Text>
             <TouchableOpacity
               style={styles.modalClose}
               onPress={() => setShowTerms(false)}
@@ -311,7 +305,7 @@ export default function LoginScreen() {
           </View>
           <ScrollView style={styles.modalScroll}>
             <Text style={styles.modalText}>
-              {`Last updated: June 2026\n\n1. ACCEPTANCE OF TERMS\nBy using Flipr, you agree to these Terms & Conditions.\n\n2. USE OF SERVICE\nFlipr provides resale market intelligence for informational purposes only. Nothing constitutes financial advice.\n\n3. DATA & PRIVACY\nWe collect your email address and usage data to provide and improve our service. We do not sell your personal data.\n\n4. ACCURACY OF DATA\nFlipr makes no guarantees about the accuracy or timeliness of market data. Resale prices can be volatile.\n\n5. USER ACCOUNTS\nYou are responsible for maintaining the security of your account.\n\n6. LIMITATION OF LIABILITY\nFlipr is not liable for any financial losses resulting from use of this app.\n\n7. CONTACT\nsupport@flipr.app`}
+              {`Last updated: June 2026\n\n1. ACCEPTANCE OF TERMS\nBy using Flipr, you agree to these Terms and Conditions.\n\n2. USE OF SERVICE\nFlipr provides resale market intelligence for informational purposes only. Nothing constitutes financial advice.\n\n3. DATA AND PRIVACY\nWe collect your email address and usage data to provide and improve our service. We do not sell your personal data.\n\n4. ACCURACY OF DATA\nFlipr makes no guarantees about the accuracy or timeliness of market data. Resale prices can be volatile.\n\n5. USER ACCOUNTS\nYou are responsible for maintaining the security of your account.\n\n6. LIMITATION OF LIABILITY\nFlipr is not liable for any financial losses resulting from use of this app.\n\n7. CONTACT\nsupport@flipr.app`}
             </Text>
             <TouchableOpacity
               style={styles.termsAgreeBtn}
@@ -320,7 +314,7 @@ export default function LoginScreen() {
                 setShowTerms(false);
               }}
             >
-              <Text style={styles.termsAgreeBtnText}>Agree & Close</Text>
+              <Text style={styles.termsAgreeBtnText}>Agree and Close</Text>
             </TouchableOpacity>
             <View style={{ height: 40 }} />
           </ScrollView>
@@ -333,7 +327,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: ICE.bg },
 
-  // Onboarding
   onboarding: {
     flex: 1,
     paddingHorizontal: 30,
@@ -342,7 +335,7 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   skipBtn: { position: "absolute", top: 16, right: 0, padding: 12 },
-  skipText: { color: ICE.textMuted, fontSize: 15 },
+  skipText: { color: ICE.textMuted, fontSize: 15, fontFamily: FONT.medium },
   penguinWrap: { alignItems: "center" },
   penguinLarge: { width: 180, height: 180 },
   stepBadge: {
@@ -353,20 +346,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: ICE.border,
   },
-  stepBadgeText: { color: ICE.textSecondary, fontSize: 12, fontWeight: "600" },
+  stepBadgeText: {
+    color: ICE.textSecondary,
+    fontSize: 12,
+    fontFamily: FONT.semibold,
+  },
   onboardingText: { alignItems: "center", gap: 12 },
   onboardingTitle: {
     color: ICE.textPrimary,
     fontSize: 28,
-    fontWeight: "800",
+    fontFamily: FONT.extrabold,
     textAlign: "center",
     letterSpacing: -0.5,
   },
   onboardingSubtitle: {
     color: ICE.textSecondary,
     fontSize: 16,
+    fontFamily: FONT.regular,
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 26,
   },
   dots: { flexDirection: "row", gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: ICE.bgElement },
@@ -378,9 +376,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
     alignItems: "center",
   },
-  onboardingBtnText: { color: "#000", fontSize: 16, fontWeight: "800" },
+  onboardingBtnText: {
+    color: "#000",
+    fontSize: 16,
+    fontFamily: FONT.extrabold,
+  },
 
-  // Auth
   inner: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
@@ -389,39 +390,55 @@ const styles = StyleSheet.create({
     gap: 24,
     paddingVertical: 40,
   },
-  logoSection: { alignItems: "center", gap: 6 },
+  logoSection: { alignItems: "center", gap: 8 },
   logoImage: { width: 80, height: 80, borderRadius: 20 },
   logoText: {
     fontSize: 42,
-    fontWeight: "800",
+    fontFamily: FONT.extrabold,
     color: ICE.textPrimary,
     letterSpacing: -2,
   },
-  tagline: { color: ICE.textMuted, fontSize: 11, letterSpacing: 2 },
+  tagline: {
+    color: ICE.textMuted,
+    fontSize: 11,
+    fontFamily: FONT.semibold,
+    letterSpacing: 2,
+  },
+
   card: {
     backgroundColor: ICE.bgCard,
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
     borderColor: ICE.border,
-    gap: 16,
+    gap: 18,
   },
-  cardTitle: { color: ICE.textPrimary, fontSize: 22, fontWeight: "800" },
-  cardSubtitle: { color: ICE.textSecondary, fontSize: 14, marginTop: -8 },
-  inputGroup: { gap: 6 },
+  cardTitle: {
+    color: ICE.textPrimary,
+    fontSize: 24,
+    fontFamily: FONT.extrabold,
+  },
+  cardSubtitle: {
+    color: ICE.textSecondary,
+    fontSize: 14,
+    fontFamily: FONT.regular,
+    marginTop: -8,
+  },
+  inputGroup: { gap: 8 },
   inputLabel: {
     color: ICE.textMuted,
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: FONT.bold,
     letterSpacing: 1.5,
   },
   input: {
     backgroundColor: ICE.bgElement,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 15,
     color: ICE.textPrimary,
     fontSize: 15,
+    fontFamily: FONT.regular,
     borderWidth: 1,
     borderColor: ICE.border,
   },
@@ -436,13 +453,14 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 15,
     color: ICE.textPrimary,
     fontSize: 15,
+    fontFamily: FONT.regular,
   },
-  eyeBtn: { paddingHorizontal: 14, paddingVertical: 14 },
-  eyeIcon: { fontSize: 18 },
-  termsRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  eyeBtn: { paddingHorizontal: 16, paddingVertical: 15 },
+  eyeText: { color: ICE.primary, fontSize: 13, fontFamily: FONT.semibold },
+  termsRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   checkbox: {
     width: 22,
     height: 22,
@@ -453,25 +471,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   checkboxActive: { backgroundColor: ICE.primary, borderColor: ICE.primary },
-  checkmark: { color: "#000", fontSize: 13, fontWeight: "800" },
-  termsText: { color: ICE.textSecondary, fontSize: 13, flex: 1 },
-  termsLink: { color: ICE.primary, fontWeight: "600" },
-  error: { color: ICE.down, fontSize: 13, textAlign: "center" },
+  checkmark: { color: "#000", fontSize: 13, fontFamily: FONT.extrabold },
+  termsText: {
+    color: ICE.textSecondary,
+    fontSize: 13,
+    fontFamily: FONT.regular,
+    flex: 1,
+    lineHeight: 20,
+  },
+  termsLink: { color: ICE.primary, fontFamily: FONT.semibold },
+  error: {
+    color: ICE.down,
+    fontSize: 13,
+    fontFamily: FONT.medium,
+    textAlign: "center",
+  },
   success: { color: ICE.up },
   button: {
     backgroundColor: ICE.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 17,
     alignItems: "center",
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#000", fontSize: 16, fontWeight: "800" },
+  buttonText: { color: "#000", fontSize: 16, fontFamily: FONT.extrabold },
   toggle: { alignItems: "center" },
-  toggleText: { color: ICE.textSecondary, fontSize: 13 },
-  toggleLink: { color: ICE.primary, fontWeight: "700" },
-  skip: { color: ICE.textMuted, fontSize: 13, textAlign: "center" },
+  toggleText: {
+    color: ICE.textSecondary,
+    fontSize: 13,
+    fontFamily: FONT.regular,
+  },
+  toggleLink: { color: ICE.primary, fontFamily: FONT.semibold },
+  skip: {
+    color: ICE.textMuted,
+    fontSize: 13,
+    fontFamily: FONT.regular,
+    textAlign: "center",
+  },
 
-  // Modal
   modalContainer: { flex: 1, backgroundColor: ICE.bg },
   modalHeader: {
     flexDirection: "row",
@@ -482,11 +519,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: ICE.border,
   },
-  modalTitle: { color: ICE.textPrimary, fontSize: 18, fontWeight: "700" },
+  modalTitle: { color: ICE.textPrimary, fontSize: 18, fontFamily: FONT.bold },
   modalClose: { paddingHorizontal: 12, paddingVertical: 6 },
-  modalCloseText: { color: ICE.primary, fontSize: 15, fontWeight: "600" },
+  modalCloseText: {
+    color: ICE.primary,
+    fontSize: 15,
+    fontFamily: FONT.semibold,
+  },
   modalScroll: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
-  modalText: { color: ICE.textSecondary, fontSize: 14, lineHeight: 24 },
+  modalText: {
+    color: ICE.textSecondary,
+    fontSize: 14,
+    fontFamily: FONT.regular,
+    lineHeight: 26,
+  },
   termsAgreeBtn: {
     backgroundColor: ICE.primary,
     borderRadius: 12,
@@ -494,5 +540,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
   },
-  termsAgreeBtnText: { color: "#000", fontSize: 16, fontWeight: "800" },
+  termsAgreeBtnText: {
+    color: "#000",
+    fontSize: 16,
+    fontFamily: FONT.extrabold,
+  },
 });
