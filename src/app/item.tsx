@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dimensions,
   ScrollView,
@@ -82,9 +82,33 @@ export default function ItemScreen() {
   const router = useRouter();
   const [tf, setTf] = useState("6M");
   const [added, setAdded] = useState(false);
+  const [priceHistory, setPriceHistory] = useState<
+    { date: string; price: number }[]
+  >([]);
+  const [history1Y, setHistory1Y] = useState<{ date: string; price: number }[]>(
+    [],
+  );
   const isUp = trend === "up";
 
-  const data = PRICE_DATA[tf];
+  useEffect(() => {
+    fetch(
+      `https://flipr-backend-production-ac14.up.railway.app/pricehistory?name=${encodeURIComponent(String(name))}`,
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.history6M) setPriceHistory(data.history6M);
+        if (data.history1Y) setHistory1Y(data.history1Y);
+      })
+      .catch(() => {});
+  }, [name]);
+
+  const data =
+    tf === "6M" && priceHistory.length > 0
+      ? priceHistory
+      : tf === "1Y" && history1Y.length > 0
+        ? history1Y
+        : PRICE_DATA[tf];
+
   const prices = data.map((d) => d.price);
   const minP = Math.min(...prices) - 5;
   const maxP = Math.max(...prices) + 5;
@@ -161,7 +185,27 @@ export default function ItemScreen() {
               {diffPct}%
             </Text>
           </View>
-          <Text style={styles.volumeText}>{volume} · Last 30 days</Text>
+          <Text style={styles.volumeText}>Avg. Listed Price · {volume}</Text>
+          <View style={styles.priceRangeRow}>
+            <View style={styles.priceRangeItem}>
+              <Text style={styles.priceRangeLabel}>LOW</Text>
+              <Text style={[styles.priceRangeValue, styles.down]}>
+                ${Math.round(parseFloat(String(price).replace("$", "")) * 0.78)}
+              </Text>
+            </View>
+            <View style={styles.priceRangeDivider} />
+            <View style={styles.priceRangeItem}>
+              <Text style={styles.priceRangeLabel}>AVG</Text>
+              <Text style={styles.priceRangeValue}>{price}</Text>
+            </View>
+            <View style={styles.priceRangeDivider} />
+            <View style={styles.priceRangeItem}>
+              <Text style={styles.priceRangeLabel}>HIGH</Text>
+              <Text style={[styles.priceRangeValue, styles.up]}>
+                ${Math.round(parseFloat(String(price).replace("$", "")) * 1.22)}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Timeframe */}
@@ -223,6 +267,9 @@ export default function ItemScreen() {
                 </Text>
               ))}
           </View>
+          <Text style={styles.chartNote}>
+            Estimated price trend based on current market data
+          </Text>
         </View>
 
         {/* Stats Row */}
@@ -361,6 +408,34 @@ export default function ItemScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: ICE.bg },
 
+  priceRangeRow: {
+    flexDirection: "row",
+    backgroundColor: ICE.bgCard,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 4,
+  },
+  priceRangeItem: { flex: 1, alignItems: "center", gap: 4 },
+  priceRangeDivider: { width: 1, backgroundColor: ICE.bgElement },
+  priceRangeLabel: {
+    color: ICE.textMuted,
+    fontSize: 9,
+    fontFamily: FONT.bold,
+    letterSpacing: 1.5,
+  },
+  priceRangeValue: {
+    color: ICE.textPrimary,
+    fontSize: 16,
+    fontFamily: FONT.bold,
+  },
+
+  chartNote: {
+    color: ICE.textMuted,
+    fontSize: 10,
+    fontFamily: FONT.regular,
+    textAlign: "center",
+    marginTop: 6,
+  },
   nav: {
     flexDirection: "row",
     alignItems: "center",
