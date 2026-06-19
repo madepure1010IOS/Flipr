@@ -147,12 +147,29 @@ export default function WatchlistScreen() {
                     {item.trend === "up" ? "▲" : "▼"} {item.change}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.removeBtn}
-                  onPress={() => removeItem(item.id)}
-                >
-                  <Text style={styles.removeText}>✕</Text>
-                </TouchableOpacity>
+                <View style={styles.rowActions}>
+                  <TouchableOpacity
+                    style={styles.alertBtn}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/alert",
+                        params: {
+                          item_name: item.item_name,
+                          current_price: item.price,
+                          category: item.category,
+                        },
+                      })
+                    }
+                  >
+                    <Text style={styles.alertBtnText}>Alert</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.removeBtn}
+                    onPress={() => removeItem(item.id)}
+                  >
+                    <Text style={styles.removeText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -165,7 +182,16 @@ export default function WatchlistScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: ICE.bg },
-
+  rowActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  alertBtn: {
+    backgroundColor: ICE.upBg,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: ICE.upBorder,
+  },
+  alertBtnText: { color: ICE.up, fontSize: 11, fontFamily: FONT.bold },
   header: {
     paddingHorizontal: 20,
     paddingTop: 12,
