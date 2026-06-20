@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -25,28 +25,97 @@ const CATEGORIES = [
   "Streetwear",
   "Electronics",
   "Watches",
+  "Collectibles",
 ];
+
+function ItemImage({
+  uri,
+  fallbackLetter,
+  style,
+  letterStyle,
+}: {
+  uri?: string | null;
+  fallbackLetter: string;
+  style: any;
+  letterStyle: any;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (uri && !failed) {
+    return (
+      <Image
+        source={{ uri }}
+        style={[style, { resizeMode: "contain" }]}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <View style={[style, styles.fallbackBox]}>
+      <Text style={letterStyle}>{fallbackLetter}</Text>
+    </View>
+  );
+}
+
+function FlipScoreBadge({ score }: { score: number }) {
+  const color = score >= 70 ? ICE.up : score >= 45 ? "#f59e0b" : ICE.down;
+  const label = score >= 70 ? "🔥 HOT" : score >= 45 ? "📈 WATCH" : "💤 PASS";
+  return (
+    <View style={[styles.flipBadge, { borderColor: color }]}>
+      <Text style={[styles.flipBadgeText, { color }]}>{label}</Text>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    fetch(`${API_URL}/trending`)
+  const fetchDiscover = (isPoll = false) => {
+    fetch(`${API_URL}/discover`)
       .then((res) => res.json())
       .then((data) => {
-        setItems(data);
+        // Always show whatever we got, even if stale/empty — never block
+        // the UI waiting on a scan to finish.
+        if (data.results && data.results.length > 0) {
+          setItems(data.results);
+          setLastScanned(data.lastScanned);
+          // Got real data — stop polling if we were
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        }
+        setScanning(!!data.scanning);
         setLoading(false);
+
+        // If still scanning and we don't have a poll loop running yet,
+        // start one so the screen updates automatically once data lands —
+        // without ever blocking what's already on screen.
+        if (data.scanning && !pollRef.current && !isPoll) {
+          pollRef.current = setInterval(() => fetchDiscover(true), 8000);
+        }
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchDiscover();
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, []);
 
   const filtered =
     activeCategory === "All"
       ? items
       : items.filter((i) => i.category === activeCategory);
+
+  const topItem = filtered[0];
 
   const navigateToItem = (item: any) => {
     router.push({
@@ -58,8 +127,23 @@ export default function HomeScreen() {
         trend: item.trend,
         category: item.category,
         volume: item.volume,
+        image: item.image || "",
       },
     });
+  };
+
+  const formatLastScanned = (iso: string | null) => {
+    if (!iso) return null;
+    // lastScanned is now a date string (YYYY-MM-DD) from daily_snapshots,
+    // not a precise timestamp
+    const date = new Date(iso);
+    const now = new Date();
+    const diffDays = Math.round(
+      (now.setHours(0, 0, 0, 0) - date.setHours(0, 0, 0, 0)) / 86400000,
+    );
+    if (diffDays <= 0) return "Updated today";
+    if (diffDays === 1) return "Updated yesterday";
+    return `Updated ${diffDays}d ago`;
   };
 
   return (
@@ -75,7 +159,11 @@ export default function HomeScreen() {
             />
             <View>
               <Text style={styles.appName}>Flipr</Text>
-              <Text style={styles.subtitle}>Resale Intelligence</Text>
+              <Text style={styles.subtitle}>
+                {lastScanned
+                  ? formatLastScanned(lastScanned)
+                  : "Resale Intelligence"}
+              </Text>
             </View>
           </View>
           <View style={styles.headerRight}>
@@ -83,8 +171,10 @@ export default function HomeScreen() {
               <Text style={styles.settingsIcon}>⚙️</Text>
             </TouchableOpacity>
             <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
+              <View style={[styles.liveDot, scanning && styles.liveDotPulse]} />
+              <Text style={styles.liveText}>
+                {scanning ? "UPDATING" : "LIVE"}
+              </Text>
             </View>
           </View>
         </View>
@@ -116,80 +206,102 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
+        {/* Initial load spinner — only shown before first response arrives */}
         {loading && (
-          <ActivityIndicator
-            size="large"
-            color={ICE.primary}
-            style={{ marginTop: 60 }}
-          />
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={ICE.primary} />
+            <Text style={styles.loadingText}>Finding flip opportunities…</Text>
+          </View>
         )}
 
-        {/* Top Performer — full width hero card */}
-        {!loading && items.length > 0 && (
+        {/* True empty state — no cached data exists anywhere yet (first ever boot) */}
+        {!loading && scanning && items.length === 0 && (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={ICE.primary} />
+            <Text style={styles.loadingText}>Running first market scan…</Text>
+            <Text style={styles.loadingSubtext}>
+              This can take a couple minutes the very first time
+            </Text>
+          </View>
+        )}
+
+        {/* Top Flip Opportunity — hero card */}
+        {!loading && topItem && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>TOP PERFORMER</Text>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionLabel}>TOP FLIP OPPORTUNITY</Text>
+              <FlipScoreBadge score={topItem.flipScore || 0} />
+            </View>
             <TouchableOpacity
               style={styles.heroCard}
-              onPress={() => navigateToItem(items[0])}
+              onPress={() => navigateToItem(topItem)}
             >
               <View style={styles.heroCardTop}>
-                <View style={styles.heroImageBox}>
-                  <Text style={styles.heroImageLetter}>
-                    {items[0].name?.charAt(0)}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.trendBadge,
-                    items[0].trend === "up"
-                      ? styles.trendBadgeUp
-                      : styles.trendBadgeDown,
-                  ]}
-                >
-                  <Text
+                <ItemImage
+                  uri={topItem.image}
+                  fallbackLetter={topItem.name?.charAt(0)}
+                  style={styles.heroImageBox}
+                  letterStyle={styles.heroImageLetter}
+                />
+                <View style={styles.heroRight}>
+                  <View
                     style={[
-                      styles.trendBadgeText,
-                      items[0].trend === "up" ? styles.up : styles.down,
+                      styles.trendBadge,
+                      topItem.trend === "up"
+                        ? styles.trendBadgeUp
+                        : styles.trendBadgeDown,
                     ]}
                   >
-                    {items[0].trend === "up" ? "▲" : "▼"}{" "}
-                    {String(items[0].change).replace("+", "")}
+                    <Text
+                      style={[
+                        styles.trendBadgeText,
+                        topItem.trend === "up" ? styles.up : styles.down,
+                      ]}
+                    >
+                      {topItem.trend === "up" ? "▲" : "▼"}{" "}
+                      {String(topItem.change).replace("+", "")}
+                    </Text>
+                  </View>
+                  <Text style={styles.heroScore}>
+                    Score: {topItem.flipScore || "—"}
                   </Text>
                 </View>
               </View>
               <Text style={styles.heroCategory}>
-                {items[0].category?.toUpperCase()}
+                {topItem.category?.toUpperCase()}
               </Text>
               <Text style={styles.heroName} numberOfLines={2}>
-                {items[0].name}
+                {topItem.name}
               </Text>
               <View style={styles.heroBottom}>
-                <Text style={styles.heroPrice}>{items[0].price}</Text>
-                <Text style={styles.heroVolume}>{items[0].volume}</Text>
+                <Text style={styles.heroPrice}>{topItem.price}</Text>
+                <Text style={styles.heroVolume}>{topItem.volume}</Text>
               </View>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Grid */}
-        {!loading && filtered.length > 0 && (
+        {/* Grid — all opportunities ranked by flip score */}
+        {!loading && filtered.length > 1 && (
           <View style={styles.section}>
             <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>TRENDING NOW</Text>
-              <Text style={styles.sectionCount}>{filtered.length} items</Text>
+              <Text style={styles.sectionLabel}>ALL OPPORTUNITIES</Text>
+              <Text style={styles.sectionCount}>{filtered.length} found</Text>
             </View>
             <View style={styles.grid}>
-              {filtered.map((item, index) => (
+              {filtered.slice(1).map((item, index) => (
                 <TouchableOpacity
                   key={index}
                   style={styles.gridCard}
                   onPress={() => navigateToItem(item)}
                 >
-                  {/* Image area */}
-                  <View style={styles.gridImageBox}>
-                    <Text style={styles.gridImageLetter}>
-                      {item.name?.charAt(0)}
-                    </Text>
+                  <View style={styles.gridImageWrap}>
+                    <ItemImage
+                      uri={item.image}
+                      fallbackLetter={item.name?.charAt(0)}
+                      style={styles.gridImageBox}
+                      letterStyle={styles.gridImageLetter}
+                    />
                     <View
                       style={[
                         styles.gridTrendDot,
@@ -199,14 +311,10 @@ export default function HomeScreen() {
                       ]}
                     />
                   </View>
-
-                  {/* Info */}
                   <Text style={styles.gridCategory}>{item.category}</Text>
                   <Text style={styles.gridName} numberOfLines={2}>
                     {item.name}
                   </Text>
-
-                  {/* Price row */}
                   <View style={styles.gridPriceRow}>
                     <Text style={styles.gridPrice}>{item.price}</Text>
                     <Text
@@ -215,10 +323,26 @@ export default function HomeScreen() {
                         item.trend === "up" ? styles.up : styles.down,
                       ]}
                     >
-                      {item.trend === "up" ? "+" : ""}
-                      {String(item.change).replace("+", "")}
+                      {String(item.change)}
                     </Text>
                   </View>
+                  {item.flipScore != null && (
+                    <View style={styles.scoreRow}>
+                      <Text style={styles.scoreLabel}>Flip Score</Text>
+                      <Text
+                        style={[
+                          styles.scoreValue,
+                          item.flipScore >= 70
+                            ? styles.up
+                            : item.flipScore >= 45
+                              ? styles.warn
+                              : styles.down,
+                        ]}
+                      >
+                        {item.flipScore}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -234,7 +358,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: ICE.bg },
 
-  // Header
   header: {
     paddingHorizontal: 20,
     paddingTop: 12,
@@ -271,6 +394,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: ICE.primary,
   },
+  liveDotPulse: { backgroundColor: "#f59e0b" },
   liveText: {
     color: ICE.primary,
     fontSize: 9,
@@ -278,7 +402,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
 
-  // Categories
   categoryContainer: { paddingHorizontal: 20, gap: 8, marginBottom: 28 },
   categoryPill: {
     paddingHorizontal: 14,
@@ -290,7 +413,21 @@ const styles = StyleSheet.create({
   categoryText: { color: ICE.textMuted, fontSize: 13, fontWeight: "500" },
   categoryTextActive: { color: "#000", fontWeight: "700" },
 
-  // Sections
+  loadingWrap: {
+    marginTop: 60,
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    color: ICE.textMuted,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  loadingSubtext: {
+    color: ICE.textMuted,
+    fontSize: 12,
+  },
+
   section: { marginBottom: 28, paddingHorizontal: 20 },
   sectionRow: {
     flexDirection: "row",
@@ -303,11 +440,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 2,
-    marginBottom: 14,
   },
   sectionCount: { color: ICE.textMuted, fontSize: 11 },
 
-  // Hero Card
+  flipBadge: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  flipBadgeText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+
   heroCard: {
     backgroundColor: ICE.bgCard,
     borderRadius: 20,
@@ -321,14 +464,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   heroImageBox: {
-    width: 56,
-    height: 56,
+    width: 72,
+    height: 72,
     backgroundColor: ICE.bgElement,
     borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
   },
-  heroImageLetter: { color: ICE.textMuted, fontSize: 24, fontWeight: "800" },
+  heroImageLetter: { color: ICE.textMuted, fontSize: 28, fontWeight: "800" },
+  fallbackBox: { justifyContent: "center", alignItems: "center" },
+  heroRight: { alignItems: "flex-end", gap: 8 },
+  heroScore: { color: ICE.textMuted, fontSize: 11, fontWeight: "600" },
   trendBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   trendBadgeUp: { backgroundColor: ICE.upBg },
   trendBadgeDown: { backgroundColor: ICE.downBg },
@@ -359,7 +503,6 @@ const styles = StyleSheet.create({
   },
   heroVolume: { color: ICE.textMuted, fontSize: 12 },
 
-  // Grid
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   gridCard: {
     width: CARD_WIDTH,
@@ -368,15 +511,12 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 4,
   },
+  gridImageWrap: { position: "relative", marginBottom: 10 },
   gridImageBox: {
     width: "100%",
     height: 90,
     backgroundColor: ICE.bgElement,
     borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-    position: "relative",
   },
   gridImageLetter: { color: ICE.textMuted, fontSize: 32, fontWeight: "800" },
   gridTrendDot: {
@@ -409,7 +549,19 @@ const styles = StyleSheet.create({
   },
   gridPrice: { color: ICE.textPrimary, fontSize: 15, fontWeight: "800" },
   gridChange: { fontSize: 12, fontWeight: "600" },
+  scoreRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: ICE.bgElement,
+  },
+  scoreLabel: { color: ICE.textMuted, fontSize: 10, fontWeight: "600" },
+  scoreValue: { fontSize: 13, fontWeight: "800" },
 
   up: { color: ICE.up },
   down: { color: ICE.down },
+  warn: { color: "#f59e0b" },
 });
