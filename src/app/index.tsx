@@ -17,15 +17,17 @@ const API_URL = "https://flipr-backend-production-ac14.up.railway.app";
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 52) / 2;
 
+// Matches the category names the backend's scanner actually assigns
+// (CATEGORY_SWEEPS names in server.js), so filtering actually works.
 const CATEGORIES = [
   "All",
   "Sneakers",
   "Cards",
-  "LEGO",
+  "Collectibles",
   "Streetwear",
   "Electronics",
   "Watches",
-  "Collectibles",
+  "Toys & Hobbies",
 ];
 
 function ItemImage({
@@ -66,6 +68,14 @@ function FlipScoreBadge({ score }: { score: number }) {
   );
 }
 
+// Spread = how far apart the cheapest and priciest listing of the same
+// item are, relative to average. Bigger spread = bigger flip opportunity.
+function spreadTierColor(spreadPct: number) {
+  if (spreadPct >= 50) return ICE.up;
+  if (spreadPct >= 25) return "#f59e0b";
+  return ICE.down;
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const [items, setItems] = useState<any[]>([]);
@@ -79,12 +89,11 @@ export default function HomeScreen() {
     fetch(`${API_URL}/discover`)
       .then((res) => res.json())
       .then((data) => {
-        // Always show whatever we got, even if stale/empty — never block
+        // Always show whatever we got, even if stale/empty -- never block
         // the UI waiting on a scan to finish.
         if (data.results && data.results.length > 0) {
           setItems(data.results);
           setLastScanned(data.lastScanned);
-          // Got real data — stop polling if we were
           if (pollRef.current) {
             clearInterval(pollRef.current);
             pollRef.current = null;
@@ -93,9 +102,6 @@ export default function HomeScreen() {
         setScanning(!!data.scanning);
         setLoading(false);
 
-        // If still scanning and we don't have a poll loop running yet,
-        // start one so the screen updates automatically once data lands —
-        // without ever blocking what's already on screen.
         if (data.scanning && !pollRef.current && !isPoll) {
           pollRef.current = setInterval(() => fetchDiscover(true), 8000);
         }
@@ -123,8 +129,6 @@ export default function HomeScreen() {
       params: {
         name: item.name,
         price: item.price,
-        change: item.change,
-        trend: item.trend,
         category: item.category,
         volume: item.volume,
         image: item.image || "",
@@ -134,8 +138,6 @@ export default function HomeScreen() {
 
   const formatLastScanned = (iso: string | null) => {
     if (!iso) return null;
-    // lastScanned is now a date string (YYYY-MM-DD) from daily_snapshots,
-    // not a precise timestamp
     const date = new Date(iso);
     const now = new Date();
     const diffDays = Math.round(
@@ -206,7 +208,7 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {/* Initial load spinner — only shown before first response arrives */}
+        {/* Initial load spinner */}
         {loading && (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={ICE.primary} />
@@ -214,7 +216,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* True empty state — no cached data exists anywhere yet (first ever boot) */}
+        {/* True empty state -- no cached data exists anywhere yet */}
         {!loading && scanning && items.length === 0 && (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={ICE.primary} />
@@ -225,7 +227,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Top Flip Opportunity — hero card */}
+        {/* Top Flip Opportunity -- hero card */}
         {!loading && topItem && (
           <View style={styles.section}>
             <View style={styles.sectionRow}>
@@ -244,24 +246,26 @@ export default function HomeScreen() {
                   letterStyle={styles.heroImageLetter}
                 />
                 <View style={styles.heroRight}>
-                  <View
-                    style={[
-                      styles.trendBadge,
-                      topItem.trend === "up"
-                        ? styles.trendBadgeUp
-                        : styles.trendBadgeDown,
-                    ]}
-                  >
-                    <Text
+                  {topItem.spreadPct != null && (
+                    <View
                       style={[
-                        styles.trendBadgeText,
-                        topItem.trend === "up" ? styles.up : styles.down,
+                        styles.trendBadge,
+                        {
+                          backgroundColor:
+                            spreadTierColor(topItem.spreadPct) + "33",
+                        },
                       ]}
                     >
-                      {topItem.trend === "up" ? "▲" : "▼"}{" "}
-                      {String(topItem.change).replace("+", "")}
-                    </Text>
-                  </View>
+                      <Text
+                        style={[
+                          styles.trendBadgeText,
+                          { color: spreadTierColor(topItem.spreadPct) },
+                        ]}
+                      >
+                        ↔ {Math.round(topItem.spreadPct)}% spread
+                      </Text>
+                    </View>
+                  )}
                   <Text style={styles.heroScore}>
                     Score: {topItem.flipScore || "—"}
                   </Text>
@@ -277,11 +281,16 @@ export default function HomeScreen() {
                 <Text style={styles.heroPrice}>{topItem.price}</Text>
                 <Text style={styles.heroVolume}>{topItem.volume}</Text>
               </View>
+              {topItem.minPrice != null && topItem.maxPrice != null && (
+                <Text style={styles.heroRange}>
+                  Range: ${topItem.minPrice} – ${topItem.maxPrice}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Grid — all opportunities ranked by flip score */}
+        {/* Grid -- all opportunities ranked by flip score */}
         {!loading && filtered.length > 1 && (
           <View style={styles.section}>
             <View style={styles.sectionRow}>
@@ -302,14 +311,21 @@ export default function HomeScreen() {
                       style={styles.gridImageBox}
                       letterStyle={styles.gridImageLetter}
                     />
-                    <View
-                      style={[
-                        styles.gridTrendDot,
-                        item.trend === "up"
-                          ? styles.trendDotUp
-                          : styles.trendDotDown,
-                      ]}
-                    />
+                    {item.flipScore != null && (
+                      <View
+                        style={[
+                          styles.gridTrendDot,
+                          {
+                            backgroundColor:
+                              item.flipScore >= 70
+                                ? ICE.up
+                                : item.flipScore >= 45
+                                  ? "#f59e0b"
+                                  : ICE.down,
+                          },
+                        ]}
+                      />
+                    )}
                   </View>
                   <Text style={styles.gridCategory}>{item.category}</Text>
                   <Text style={styles.gridName} numberOfLines={2}>
@@ -317,14 +333,16 @@ export default function HomeScreen() {
                   </Text>
                   <View style={styles.gridPriceRow}>
                     <Text style={styles.gridPrice}>{item.price}</Text>
-                    <Text
-                      style={[
-                        styles.gridChange,
-                        item.trend === "up" ? styles.up : styles.down,
-                      ]}
-                    >
-                      {String(item.change)}
-                    </Text>
+                    {item.spreadPct != null && (
+                      <Text
+                        style={[
+                          styles.gridChange,
+                          { color: spreadTierColor(item.spreadPct) },
+                        ]}
+                      >
+                        {Math.round(item.spreadPct)}% spread
+                      </Text>
+                    )}
                   </View>
                   {item.flipScore != null && (
                     <View style={styles.scoreRow}>
@@ -474,9 +492,7 @@ const styles = StyleSheet.create({
   heroRight: { alignItems: "flex-end", gap: 8 },
   heroScore: { color: ICE.textMuted, fontSize: 11, fontWeight: "600" },
   trendBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  trendBadgeUp: { backgroundColor: ICE.upBg },
-  trendBadgeDown: { backgroundColor: ICE.downBg },
-  trendBadgeText: { fontSize: 12, fontWeight: "700" },
+  trendBadgeText: { fontSize: 11, fontWeight: "700" },
   heroCategory: {
     color: ICE.primary,
     fontSize: 10,
@@ -502,6 +518,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   heroVolume: { color: ICE.textMuted, fontSize: 12 },
+  heroRange: { color: ICE.textMuted, fontSize: 11, marginTop: 2 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   gridCard: {
@@ -527,8 +544,6 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  trendDotUp: { backgroundColor: ICE.up },
-  trendDotDown: { backgroundColor: ICE.down },
   gridCategory: {
     color: ICE.textMuted,
     fontSize: 10,
@@ -548,7 +563,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   gridPrice: { color: ICE.textPrimary, fontSize: 15, fontWeight: "800" },
-  gridChange: { fontSize: 12, fontWeight: "600" },
+  gridChange: { fontSize: 11, fontWeight: "600" },
   scoreRow: {
     flexDirection: "row",
     justifyContent: "space-between",

@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,284 +10,293 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FONT, ICE } from "../constants/theme";
+import { ICE } from "../constants/theme";
 import { supabase } from "../supabase";
 
-const { width } = Dimensions.get("window");
+const API_URL = "https://flipr-backend-production-ac14.up.railway.app";
 
 interface PriceSnapshot {
   avgPrice: number | null;
-  minPrice?: number | null;
-  maxPrice?: number | null;
-  totalSold: number | null;
-  priceChangePct?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  listingVolume?: number;
+  spreadPct?: number;
   flipScore?: number;
-  trend?: string;
   scored: boolean;
-  source: string;
+  source: "cached" | "ebay_live" | "none";
   lastUpdated?: string;
   message?: string;
 }
 
 export default function ItemScreen() {
-  const { name, price, change, trend, category, volume, image } =
-    useLocalSearchParams();
   const router = useRouter();
-  const [added, setAdded] = useState(false);
+  const { name, price, category, volume, image } = useLocalSearchParams<{
+    name: string;
+    price: string;
+    category: string;
+    volume: string;
+    image: string;
+  }>();
+
   const [snapshot, setSnapshot] = useState<PriceSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [imgFailed, setImgFailed] = useState(false);
-
-  const imageUri =
-    image && String(image).startsWith("http") ? String(image) : null;
+  const [watchlisted, setWatchlisted] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    fetch(
-      `https://flipr-backend-production-ac14.up.railway.app/pricehistory?name=${encodeURIComponent(String(name))}`,
-    )
+    if (!name) return;
+    fetch(`${API_URL}/pricehistory?name=${encodeURIComponent(name)}`)
       .then((res) => res.json())
-      .then((data: PriceSnapshot) => {
-        setSnapshot(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-      });
+      .then((data) => setSnapshot(data))
+      .catch(() => setSnapshot(null))
+      .finally(() => setLoading(false));
   }, [name]);
 
-  const rawPrice = parseFloat(String(price).replace("$", "")) || 0;
-  const isScored = snapshot?.scored === true;
-  const isUp = (snapshot?.trend ?? trend) === "up";
+  const rawPrice = price
+    ? parseFloat(String(price).replace(/[^0-9.]/g, ""))
+    : null;
 
   const displayAvg = snapshot?.avgPrice ?? rawPrice;
-  const displayMin = snapshot?.minPrice ?? Math.round(displayAvg * 0.85);
-  const displayMax = snapshot?.maxPrice ?? Math.round(displayAvg * 1.15);
-  const displaySold = snapshot?.totalSold ?? null;
+  const displayMin = snapshot?.minPrice ?? null;
+  const displayMax = snapshot?.maxPrice ?? null;
+  const displayVolume =
+    snapshot?.listingVolume ??
+    (volume ? parseInt(String(volume).replace(/[^0-9]/g, ""), 10) : null);
+
+  const isScored = snapshot?.scored === true;
   const flipScore = snapshot?.flipScore ?? null;
+  const spreadPct = snapshot?.spreadPct ?? null;
 
-  const rawChange =
-    snapshot?.priceChangePct ??
-    parseFloat(String(change).replace("%", "").replace("+", "")) ??
-    0;
-  const diffPct = Math.abs(rawChange).toFixed(1);
-  const lineColor = isUp ? ICE.up : ICE.down;
-
+  // Flip score tier -- the single primary signal now that there's no
+  // time-based trend. Reused for both the image overlay and score card.
   const scoreColor =
-    flipScore != null
-      ? flipScore >= 70
+    flipScore == null
+      ? ICE.textMuted
+      : flipScore >= 70
         ? ICE.up
         : flipScore >= 45
           ? "#f59e0b"
-          : ICE.down
-      : ICE.textMuted;
+          : ICE.down;
   const scoreLabel =
-    flipScore != null
-      ? flipScore >= 70
-        ? "🔥 Hot Flip"
+    flipScore == null
+      ? "Not yet scored"
+      : flipScore >= 70
+        ? "Strong Flip Candidate"
         : flipScore >= 45
-          ? "📈 Worth Watching"
-          : "💤 Low Signal"
-      : null;
+          ? "Worth Watching"
+          : "Low Signal";
+  const shortScoreLabel =
+    flipScore == null
+      ? null
+      : flipScore >= 70
+        ? "🔥 HOT"
+        : flipScore >= 45
+          ? "📈 WATCH"
+          : "💤 PASS";
+
+  // Spread tier -- how far apart the cheapest and priciest active listing
+  // of this product are, relative to average. The actual flip signal.
+  const spreadColor =
+    spreadPct == null
+      ? ICE.textMuted
+      : spreadPct >= 50
+        ? ICE.up
+        : spreadPct >= 25
+          ? "#f59e0b"
+          : ICE.textMuted;
 
   const handleAddToWatchlist = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("watchlist").insert({
-      user_id: user.id,
-      item_name: name,
-      category,
-      price,
-      change,
-      trend,
-      volume,
-    });
-    setAdded(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      await supabase.from("watchlist").insert({
+        user_id: user.id,
+        item_name: name,
+        category,
+        price: displayAvg,
+        volume: displayVolume,
+        image: image || null,
+      });
+      setWatchlisted(true);
+    } catch (err) {
+      console.error("Watchlist error:", err);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Image */}
-        <View style={styles.heroImageWrap}>
-          {imageUri && !imgFailed ? (
+        <View style={styles.imageWrap}>
+          {image ? (
             <Image
-              source={{ uri: imageUri }}
-              style={styles.heroImage}
+              source={{ uri: String(image) }}
+              style={styles.image}
               resizeMode="contain"
-              onError={() => setImgFailed(true)}
             />
           ) : (
-            <View style={styles.heroImageFallback}>
-              <Text style={styles.heroImageFallbackText}>
-                {String(name).charAt(0)}
+            <View style={[styles.image, styles.imageFallback]}>
+              <Text style={styles.imageFallbackLetter}>
+                {String(name)?.charAt(0)}
               </Text>
             </View>
           )}
 
-          <View style={styles.navOverlay}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backBtn}
-            >
-              <Text style={styles.backText}>←</Text>
-            </TouchableOpacity>
-            {isScored && (
-              <View
-                style={[
-                  styles.signalBadge,
-                  isUp ? styles.signalUp : styles.signalDown,
-                ]}
-              >
-                <Text
-                  style={[styles.signalText, isUp ? styles.up : styles.down]}
-                >
-                  {isUp ? "BUY" : "AVOID"}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backBtnText}>←</Text>
+          </TouchableOpacity>
 
-        {/* Category label */}
-        <View style={styles.categoryRow}>
-          <Text style={styles.navCategory}>
-            {String(category).toUpperCase()}
-          </Text>
-          {!loading && !isScored && (
-            <View style={styles.notTrackedBadge}>
-              <Text style={styles.notTrackedText}>NOT YET TRACKED</Text>
+          {isScored && shortScoreLabel && (
+            <View
+              style={[
+                styles.signalBadge,
+                {
+                  borderColor: scoreColor,
+                  backgroundColor: "rgba(0,0,0,0.45)",
+                },
+              ]}
+            >
+              <Text style={[styles.signalText, { color: scoreColor }]}>
+                {shortScoreLabel}
+              </Text>
             </View>
           )}
         </View>
 
-        {/* Price Hero */}
-        <View style={styles.priceHero}>
-          <Text style={styles.itemName}>{name}</Text>
+        <View style={styles.content}>
+          <Text style={styles.category}>{String(category)?.toUpperCase()}</Text>
+          <Text style={styles.name}>{name}</Text>
 
           {loading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={ICE.primary} />
-              <Text style={styles.loadingText}>Loading price data…</Text>
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="small" color={ICE.primary} />
             </View>
           ) : (
             <>
-              <Text style={styles.priceText}>
-                {displayAvg ? `$${displayAvg}` : "—"}
-              </Text>
-
-              {isScored ? (
-                <View
-                  style={[styles.changePill, { backgroundColor: lineColor }]}
-                >
-                  <Text style={styles.changePillText}>
-                    {isUp ? "+" : "-"}
-                    {diffPct}%
-                  </Text>
-                </View>
-              ) : null}
+              <View style={styles.priceRow}>
+                <Text style={styles.price}>
+                  {displayAvg != null ? `$${displayAvg}` : "—"}
+                </Text>
+                {isScored && spreadPct != null && (
+                  <View
+                    style={[
+                      styles.changePill,
+                      { backgroundColor: spreadColor },
+                    ]}
+                  >
+                    <Text style={styles.changePillText}>
+                      {Math.round(spreadPct)}% spread
+                    </Text>
+                  </View>
+                )}
+              </View>
 
               <Text style={styles.volumeText}>
                 {isScored
-                  ? `${displaySold ?? "—"} sold · tracked daily`
+                  ? `${displayVolume ?? "—"} listed · tracked daily`
                   : snapshot?.source === "ebay_live"
-                    ? `${displaySold ?? "—"} active listings · live eBay data`
+                    ? `${displayVolume ?? "—"} active listings · live eBay data`
                     : snapshot?.message || "No pricing data available"}
               </Text>
 
-              {displayAvg ? (
-                <View style={styles.priceRangeRow}>
-                  <View style={styles.priceRangeItem}>
-                    <Text style={styles.priceRangeLabel}>LOW</Text>
-                    <Text style={[styles.priceRangeValue, styles.down]}>
+              {displayMin != null && displayMax != null && (
+                <View style={styles.rangeCard}>
+                  <View style={styles.rangeItem}>
+                    <Text style={[styles.rangeValue, styles.down]}>
                       ${displayMin}
                     </Text>
+                    <Text style={styles.rangeLabel}>LOW</Text>
                   </View>
-                  <View style={styles.priceRangeDivider} />
-                  <View style={styles.priceRangeItem}>
-                    <Text style={styles.priceRangeLabel}>AVG</Text>
-                    <Text style={styles.priceRangeValue}>${displayAvg}</Text>
+                  <View style={styles.rangeDivider} />
+                  <View style={styles.rangeItem}>
+                    <Text style={styles.rangeValue}>${displayAvg}</Text>
+                    <Text style={styles.rangeLabel}>AVG</Text>
                   </View>
-                  <View style={styles.priceRangeDivider} />
-                  <View style={styles.priceRangeItem}>
-                    <Text style={styles.priceRangeLabel}>HIGH</Text>
-                    <Text style={[styles.priceRangeValue, styles.up]}>
+                  <View style={styles.rangeDivider} />
+                  <View style={styles.rangeItem}>
+                    <Text style={[styles.rangeValue, styles.up]}>
                       ${displayMax}
                     </Text>
+                    <Text style={styles.rangeLabel}>HIGH</Text>
                   </View>
                 </View>
-              ) : null}
+              )}
+
+              {isScored && flipScore != null ? (
+                <View style={styles.scoreSection}>
+                  <View style={styles.scoreSectionHeader}>
+                    <Text style={styles.scoreSectionLabel}>FLIP SCORE</Text>
+                    <View
+                      style={[
+                        styles.scoreCardBadge,
+                        { borderColor: scoreColor },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.scoreCardBadgeText,
+                          { color: scoreColor },
+                        ]}
+                      >
+                        {scoreLabel}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.scoreBarTrack}>
+                    <View
+                      style={[
+                        styles.scoreBarFill,
+                        {
+                          width: `${Math.min(flipScore, 100)}%`,
+                          backgroundColor: scoreColor,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.scoreBarValue}>{flipScore} / 100</Text>
+                  <Text style={styles.scoreExplainer}>
+                    Based on how many of this item are currently listed on eBay
+                    and how wide the price gap is between the cheapest and
+                    priciest listing of the same item.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.notTrackedCard}>
+                  <Text style={styles.notTrackedTitle}>Not yet tracked</Text>
+                  <Text style={styles.notTrackedText}>
+                    Flipr's daily scanner hasn't picked up this exact item yet.
+                    The numbers above are a live snapshot pulled directly from
+                    eBay just now.
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.watchlistBtn,
+                  watchlisted && styles.watchlistBtnActive,
+                ]}
+                onPress={handleAddToWatchlist}
+                disabled={watchlisted}
+              >
+                <Text
+                  style={[
+                    styles.watchlistBtnText,
+                    watchlisted && styles.watchlistBtnTextActive,
+                  ]}
+                >
+                  {watchlisted ? "✓ Added to Watchlist" : "+ Add to Watchlist"}
+                </Text>
+              </TouchableOpacity>
             </>
           )}
         </View>
-
-        {/* Flip Score — only for scanner-discovered items */}
-        {!loading && isScored && flipScore != null && (
-          <View style={styles.scoreSection}>
-            <View style={styles.scoreCard}>
-              <View>
-                <Text style={styles.scoreCardLabel}>FLIP SCORE</Text>
-                <Text style={[styles.scoreCardValue, { color: scoreColor }]}>
-                  {flipScore}
-                  <Text style={styles.scoreCardMax}>/100</Text>
-                </Text>
-              </View>
-              <View
-                style={[styles.scoreCardBadge, { borderColor: scoreColor }]}
-              >
-                <Text
-                  style={[styles.scoreCardBadgeText, { color: scoreColor }]}
-                >
-                  {scoreLabel}
-                </Text>
-              </View>
-            </View>
-            {snapshot?.lastUpdated && (
-              <Text style={styles.lastUpdatedText}>
-                Last scanned {snapshot.lastUpdated}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Not tracked explainer */}
-        {!loading && !isScored && displayAvg ? (
-          <View style={styles.untrackedSection}>
-            <Text style={styles.untrackedTitle}>
-              This item isn't tracked yet
-            </Text>
-            <Text style={styles.untrackedBody}>
-              Flipr's daily scanner hasn't picked up this exact item, so there's
-              no flip score yet. Pricing above reflects current live eBay
-              listings. Items that show strong demand patterns get added to
-              Discover automatically.
-            </Text>
-          </View>
-        ) : null}
-
-        <View style={styles.divider} />
-
-        {/* Add to Watchlist */}
-        <View style={styles.watchlistSection}>
-          <TouchableOpacity
-            style={[styles.watchlistBtn, added && styles.watchlistBtnAdded]}
-            onPress={handleAddToWatchlist}
-            disabled={added}
-          >
-            <Text
-              style={[
-                styles.watchlistBtnText,
-                added && styles.watchlistBtnTextAdded,
-              ]}
-            >
-              {added ? "✓ Added to Watchlist" : "Add to Watchlist"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -297,207 +305,160 @@ export default function ItemScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: ICE.bg },
 
-  heroImageWrap: {
-    width: width,
-    height: 280,
-    backgroundColor: ICE.bgCard,
+  imageWrap: {
+    width: "100%",
+    height: 320,
+    backgroundColor: ICE.bgElement,
     position: "relative",
   },
-  heroImage: { width: "100%", height: "100%" },
-  heroImageFallback: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: ICE.bgElement,
-  },
-  heroImageFallbackText: {
-    fontSize: 72,
-    fontFamily: FONT.extrabold,
+  image: { width: "100%", height: "100%" },
+  imageFallback: { justifyContent: "center", alignItems: "center" },
+  imageFallbackLetter: {
+    fontSize: 64,
+    fontWeight: "800",
     color: ICE.textMuted,
   },
 
-  navOverlay: {
-    position: "absolute",
-    top: 12,
-    left: 20,
-    right: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    position: "absolute",
+    top: 16,
+    left: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "center",
     alignItems: "center",
   },
-  backText: { color: "#fff", fontSize: 20, lineHeight: 22 },
+  backBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
 
   signalBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
+    position: "absolute",
+    top: 16,
+    right: 16,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  signalUp: { backgroundColor: ICE.upBg, borderColor: ICE.upBorder },
-  signalDown: { backgroundColor: ICE.downBg, borderColor: ICE.downBorder },
-  signalText: { fontSize: 11, fontFamily: FONT.extrabold, letterSpacing: 1 },
+  signalText: { fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
 
-  categoryRow: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  navCategory: {
-    color: ICE.textMuted,
+  content: { padding: 20, gap: 4 },
+  category: {
+    color: ICE.primary,
     fontSize: 11,
-    fontFamily: FONT.bold,
-    letterSpacing: 2,
+    fontWeight: "700",
+    letterSpacing: 1.5,
   },
-  notTrackedBadge: {
-    backgroundColor: ICE.bgElement,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  notTrackedText: {
-    color: ICE.textMuted,
-    fontSize: 9,
-    fontFamily: FONT.extrabold,
-    letterSpacing: 1,
+  name: {
+    color: ICE.textPrimary,
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 28,
+    marginBottom: 8,
   },
 
-  priceHero: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 24,
-    gap: 8,
-  },
-  itemName: { color: ICE.textSecondary, fontSize: 14, fontFamily: FONT.medium },
-  loadingRow: {
+  loadingWrap: { paddingVertical: 30, alignItems: "center" },
+
+  priceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 12,
-  },
-  loadingText: { color: ICE.textMuted, fontSize: 13, fontFamily: FONT.regular },
-  priceText: {
-    color: ICE.textPrimary,
-    fontSize: 52,
-    fontFamily: FONT.extrabold,
-    letterSpacing: -2,
-  },
-  changePill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  changePillText: { color: "#000", fontFamily: FONT.extrabold, fontSize: 13 },
-  volumeText: { color: ICE.textMuted, fontSize: 12, fontFamily: FONT.regular },
-
-  priceRangeRow: {
-    flexDirection: "row",
-    backgroundColor: ICE.bgCard,
-    borderRadius: 14,
-    padding: 14,
     marginTop: 4,
   },
-  priceRangeItem: { flex: 1, alignItems: "center", gap: 4 },
-  priceRangeDivider: { width: 1, backgroundColor: ICE.bgElement },
-  priceRangeLabel: {
-    color: ICE.textMuted,
-    fontSize: 9,
-    fontFamily: FONT.bold,
-    letterSpacing: 1.5,
-  },
-  priceRangeValue: {
+  price: {
     color: ICE.textPrimary,
-    fontSize: 16,
-    fontFamily: FONT.bold,
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  changePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  changePillText: { color: "#000", fontSize: 12, fontWeight: "800" },
+
+  volumeText: {
+    color: ICE.textMuted,
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 18,
   },
 
-  scoreSection: { paddingHorizontal: 20, marginBottom: 24 },
-  scoreCard: {
+  rangeCard: {
+    flexDirection: "row",
     backgroundColor: ICE.bgCard,
     borderRadius: 16,
-    padding: 18,
+    paddingVertical: 16,
+    marginBottom: 18,
+  },
+  rangeItem: { flex: 1, alignItems: "center", gap: 4 },
+  rangeDivider: { width: 1, backgroundColor: ICE.bgElement },
+  rangeValue: { color: ICE.textPrimary, fontSize: 16, fontWeight: "700" },
+  rangeLabel: {
+    color: ICE.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+
+  scoreSection: {
+    backgroundColor: ICE.bgCard,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 18,
+    gap: 8,
+  },
+  scoreSectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  scoreCardLabel: {
+  scoreSectionLabel: {
     color: ICE.textMuted,
     fontSize: 10,
-    fontFamily: FONT.bold,
+    fontWeight: "700",
     letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  scoreCardValue: { fontSize: 36, fontFamily: FONT.extrabold },
-  scoreCardMax: {
-    fontSize: 16,
-    color: ICE.textMuted,
-    fontFamily: FONT.semibold,
   },
   scoreCardBadge: {
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  scoreCardBadgeText: { fontSize: 12, fontFamily: FONT.bold },
-  lastUpdatedText: {
-    color: ICE.textMuted,
-    fontSize: 11,
-    fontFamily: FONT.regular,
-    marginTop: 8,
-    textAlign: "center",
-  },
-
-  untrackedSection: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  untrackedTitle: {
-    color: ICE.textPrimary,
-    fontSize: 15,
-    fontFamily: FONT.bold,
-    marginBottom: 6,
-  },
-  untrackedBody: {
-    color: ICE.textMuted,
-    fontSize: 13,
-    fontFamily: FONT.regular,
-    lineHeight: 19,
-  },
-
-  divider: {
-    height: 1,
+  scoreCardBadgeText: { fontSize: 10, fontWeight: "800" },
+  scoreBarTrack: {
+    height: 8,
+    borderRadius: 4,
     backgroundColor: ICE.bgElement,
-    marginHorizontal: 20,
-    marginBottom: 28,
+    overflow: "hidden",
+  },
+  scoreBarFill: { height: "100%", borderRadius: 4 },
+  scoreBarValue: { color: ICE.textPrimary, fontSize: 13, fontWeight: "700" },
+  scoreExplainer: {
+    color: ICE.textMuted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
 
-  watchlistSection: { paddingHorizontal: 20, marginBottom: 28 },
+  notTrackedCard: {
+    backgroundColor: ICE.bgCard,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 18,
+    gap: 4,
+  },
+  notTrackedTitle: { color: ICE.textPrimary, fontSize: 14, fontWeight: "700" },
+  notTrackedText: { color: ICE.textMuted, fontSize: 12, lineHeight: 17 },
+
   watchlistBtn: {
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: ICE.primary,
-    backgroundColor: ICE.upBg,
-  },
-  watchlistBtnAdded: {
-    borderColor: ICE.textMuted,
     backgroundColor: ICE.bgElement,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginBottom: 20,
   },
-  watchlistBtnText: { color: ICE.primary, fontSize: 15, fontFamily: FONT.bold },
-  watchlistBtnTextAdded: { color: ICE.textMuted },
+  watchlistBtnActive: { backgroundColor: ICE.primaryGlow },
+  watchlistBtnText: { color: ICE.textPrimary, fontSize: 14, fontWeight: "700" },
+  watchlistBtnTextActive: { color: ICE.primary },
 
   up: { color: ICE.up },
   down: { color: ICE.down },
